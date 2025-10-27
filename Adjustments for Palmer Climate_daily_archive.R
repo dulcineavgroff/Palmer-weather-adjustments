@@ -1,11 +1,38 @@
-# Adjustments for Palmer Climate -- version 3.0
+# Adjustments for Palmer Climate -- daily archive version
+# install.packages(ggplot2)
+# install.packages(plotly)
+# install.packages(lubridate)
+# install.packages(plyr)
+# install.packages(dplyr)
+# install.packages(scales)
+
 library(ggplot2)
 library(plotly)
-#library(tidyverse)
 library(lubridate)
 library(plyr)
 library(dplyr)
 library(scales)
+# function for figure labels a, b, c
+{
+  line2user <- function(line, side) {
+    lh <- par('cin')[2] * par('cex') * par('lheight')
+    x_off <- diff(grconvertX(c(0, lh), 'inches', 'npc'))
+    y_off <- diff(grconvertY(c(0, lh), 'inches', 'npc'))
+    switch(side,
+           `1` = grconvertY(-line * y_off, 'npc', 'user'),
+           `2` = grconvertX(-line * x_off, 'npc', 'user'),
+           `3` = grconvertY(1 + line * y_off, 'npc', 'user'),
+           `4` = grconvertX(1 + line * x_off, 'npc', 'user'),
+           stop("Side must be 1, 2, 3, or 4", call.=FALSE))
+  }
+  
+  addfiglab <- function(lab, xl = par()$mar[2], yl = par()$mar[3]) {
+    
+    text(x = line2user(xl, 2), y = line2user(yl, 3), 
+         lab, xpd = NA, font = 2, cex = 1.5, adj = c(0, 1))
+    
+  }
+}
 
 # 22-mo overlap PALMOS and PAWS comparison #####    
 # create dates and variables
@@ -13,14 +40,16 @@ library(scales)
   
   setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate/ERA5 adjustment data for Palmer")
   palmos <- read.csv("table_214.csv",header=TRUE)
-  # makre air pressure numeric
+  
   palmos$Air.Pressure..mbar. <- as.numeric(palmos$Air.Pressure..mbar.)
-  # make wind speed and wind direction numeric to calc u and v wind components
+  
+  # calculate u and v wind components
   palmos$WS.avg.2min..m.s. <- as.numeric(palmos$WS.avg.2min..m.s.)
   palmos$WD.avg.2min..º. <- as.numeric(palmos$WD.avg.2min..º.)
-  # calculate u and v wind components 
+   
   palmos$v <- -palmos$WS.avg.2min..m.s. * cos(palmos$WD.avg.2min..º. *pi/180)
   palmos$u <- -palmos$WS.avg.2min..m.s. * sin(palmos$WD.avg.2min..º. *pi/180)
+  
   # format date and time
   palmos$dates <- ymd(palmos$Date)
   palmos$year <- format(as.Date(palmos$dates, format="Y%/%m/%d"),"%Y")
@@ -29,26 +58,25 @@ library(scales)
   palmos$year <- as.numeric(palmos$year,na.rm=T)
   palmos$month <- as.numeric(palmos$month,na.rm=T)
   palmos$day <- as.numeric(palmos$day,na.rm=T)
- # palmos$Time <- hms(palmos$Time)
   
-  # format columns to match paws
+  # format PalMOS columns to match PAWS columns
   palmos <- palmos[,c(30,2,3,5,9,10,16,29,28,31,32,33,14)]
   colnames(palmos)[1:13] <- c("dates","Time","WS_avg_2min", "WD_avg_2min","Air_temp","Rel_humidity","Precip_melted","u","v","year","month","day","Pressure")
   
-  # add april to september 2017 palmos data (discovered separately from orignal overlap period dataset)
+  # add april to september 2017 palmos data (discovered separately from original overlap period dataset)
   setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate/2017")  
   palmos_2017 <- read.csv("palmos_2017_1min.csv", header=TRUE)
   palmos_2017 <- palmos_2017[,c(9,1,3,4,5,6,7,14,13,10,11,12,8)]
   colnames(palmos_2017)[1:13] <- c("dates","Time","WS_avg_2min", "WD_avg_2min","Air_temp","Rel_humidity","Precip_melted","u","v","year","month","day","Pressure")
   
-  #combine palmos datasets for overlap period
+  #combine palmos datasets to make the complete PalMOS overlapping dataset
   comb.palmos <- rbind.data.frame(palmos, palmos_2017)
   
   # remove rows that have NA in the day column (removes erroneous rows with all NAs)
   comb.palmos <- comb.palmos[!is.na(comb.palmos$day), ]
   
   # calculate daily values 
-  # note that precip is calc'd different for paws and palmos (sum vs max)
+  # note that precipitation is calculated differently for PAWS and PalMOS (sum vs max, respectively)
   temp.palmos <- comb.palmos %>%
     group_by(year,month,day) %>%
     summarise(Air.Temp = mean(Air_temp, na.rm=TRUE), 
@@ -84,8 +112,6 @@ library(scales)
   paws$day <- as.numeric(paws$day,na.rm=T)
   
   paws$Rel.Humidity <- as.numeric(paws$Rel.Humidity)
-  # paws$WS_avg_2min <- as.numeric(paws$WS_avg_2min)
-  # paws$Air.Temp <- as.numeric(paws$Air.Temp)
   
   temp.paws <- paws %>%
     group_by(year,month,day) %>%
@@ -105,14 +131,20 @@ library(scales)
   
   daily.palmos <- temp.palmos %>%
     mutate(date = make_date(year, month, day))
+
+rm(temp.palmos)
+rm(temp.paws)
+
 }
   
-# remove rows/days in paws that are missing in the palmos dataset
+# remove rows (days) in PAWS that are missing in the PalMOS dataset
   daily.paws <- daily.paws[-c(52:54, 126,174,545,546),] # palmos is missing Nov 1, 2, 3, Jan 14; rm MAR 2nd too
   daily.palmos <- daily.palmos[-c(170,479,746),] # removes march 2, 2016 which is missing in paws, so need to remove from palmos
   # 05 JAN 2017 is missing in PAWS; rm from PalMOS and # 9-10 Mar 2017 is missing in PalMOS; rm from PAWS
+  
   #write.csv(daily.paws, "daily paws overlap 2015-2017.csv")
   #write.csv(daily.palmos, "daily palmos overlap 2015-2017.csv")
+  
   # check that all days match between the datasets
   daily.paws$day - daily.palmos$day # should all be zero
 
@@ -122,44 +154,11 @@ library(scales)
   daily.paws$Pressure <- daily.paws$Pressure + (40 / (29.27 * Tv)) # mslp = station pressure-hPa + (elevation-m / 9.2)
   daily.palmos$Pressure <- daily.palmos$Pressure + (6 / (29.27 * Tv))
   
-  # daily.paws$Pressure <- daily.paws$Pressure + (30 / 9.2) # mslp = station pressure-hPa + (elevation-m / 9.2)
-  # daily.palmos$Pressure <- daily.palmos$Pressure + (8 / 9.2)
-  
-  # plot(daily.paws$Pressure, daily.palmos$Pressure, xlab="PAWS Air Pressure (hPa)",cex=1.5,ylab="PALMOS Air Pressure (hPa)",xlim=c(975,1005), ylim=c(975,1005))
-  # abline(a=0, b=1, lty=3, lwd=1)
-  
   meandiff <- mean(daily.paws$Pressure) - mean(daily.palmos$Pressure)
-  meandiff # old wrong result === -3.0 mBar or hpa
-  # mslp result is -0.5635337
+  meandiff # mean difference in mslp result is -2.950576
   
-  
-  # text(981,1002, substitute(paste(bold("mean monthly\nair pressure"))))
-  # text(995,977, "Pearson's r = 0.999\nmean difference = 3.0 hPa")
-  # 
+
   ### Fig 2a daily pressure 1:1 plot #####
-  # 992 x 466
-  # function for figure labels a, b, c
-  {
-    line2user <- function(line, side) {
-      lh <- par('cin')[2] * par('cex') * par('lheight')
-      x_off <- diff(grconvertX(c(0, lh), 'inches', 'npc'))
-      y_off <- diff(grconvertY(c(0, lh), 'inches', 'npc'))
-      switch(side,
-             `1` = grconvertY(-line * y_off, 'npc', 'user'),
-             `2` = grconvertX(-line * x_off, 'npc', 'user'),
-             `3` = grconvertY(1 + line * y_off, 'npc', 'user'),
-             `4` = grconvertX(1 + line * x_off, 'npc', 'user'),
-             stop("Side must be 1, 2, 3, or 4", call.=FALSE))
-    }
-    
-    addfiglab <- function(lab, xl = par()$mar[2], yl = par()$mar[3]) {
-      
-      text(x = line2user(xl, 2), y = line2user(yl, 3), 
-           lab, xpd = NA, font = 2, cex = 1.5, adj = c(0, 1))
-      
-    }
-  }
-  
   par(mfrow=c(2,3))
   par(mar=c(4,6,0.5,0.5))
   
@@ -172,10 +171,7 @@ library(scales)
     abline(v=c(950,960,970,980,990,1000,1010,1020), h=c(950,960,970,980,990,1000,1010,1020), lty = 9, col = "grey33", lwd = 0.75)
     abline(a=0,b=1, lty = 9, col="grey33")
     text(970,1015,expression(bold("PalMOS—PAWS\nSpearman's ρ = 0.999\nn = 743")))
-    #text(970,1010,expression(bold("PalMOS—PAWS\nSpearman's ρ = 0.999\nn = 743\nCF = 0.999")))
     points(daily.palmos$Pressure, daily.paws$Pressure, col="black")
-    #points(daily.palmos$Pressure*0.999, daily.paws$Pressure, col="blue")
-    #points(daily.palmos$Pressure-2.954838, daily.paws$Pressure, col="pink3")
     
     lsf <- lm(daily.paws$Pressure ~ daily.palmos$Pressure) # lm(y ~ x)
     summary(lsf)
@@ -238,57 +234,28 @@ library(scales)
   
   
 ## Temperature #####
-  ### stats for Table S1#####
+  ### stats for Table S1 #####
   wilcox.test(daily.palmos$Air.Temp[1:719], daily.paws$Air.Temp[1:719], paired=T)
   cor.test(daily.palmos$Air.Temp[1:719], daily.paws$Air.Temp[1:719], method="spearman")
   
   ### Fig 2a daily temperature 1:1 plot #####
-  # 992 x 466
-  # function for figure labels a, b, c
-  {
-    line2user <- function(line, side) {
-      lh <- par('cin')[2] * par('cex') * par('lheight')
-      x_off <- diff(grconvertX(c(0, lh), 'inches', 'npc'))
-      y_off <- diff(grconvertY(c(0, lh), 'inches', 'npc'))
-      switch(side,
-             `1` = grconvertY(-line * y_off, 'npc', 'user'),
-             `2` = grconvertX(-line * x_off, 'npc', 'user'),
-             `3` = grconvertY(1 + line * y_off, 'npc', 'user'),
-             `4` = grconvertX(1 + line * x_off, 'npc', 'user'),
-             stop("Side must be 1, 2, 3, or 4", call.=FALSE))
-    }
-    
-    addfiglab <- function(lab, xl = par()$mar[2], yl = par()$mar[3]) {
-      
-      text(x = line2user(xl, 2), y = line2user(yl, 3), 
-           lab, xpd = NA, font = 2, cex = 1.5, adj = c(0, 1))
-      
-    }
-  }
-  
   par(mfrow=c(2,3))
   par(mar=c(4,6,0.5,0.5))
   
   {
   plot(daily.palmos$Air.Temp[1:719], daily.paws$Air.Temp[1:719],
        xlab=expression(bold("PalMOS air temperature (ºC)")), ylab=expression(bold("PAWS air temperature (ºC)")),
-       xlim=c(-17,7), ylim=c(-17,7), col="transparent",
-     cex.lab=1.5, cex.axis=1.5
-     )
-abline(v=c(-15,-10,-5,0,5), h=c(-15,-10,-5,0,5), lty = 9, col = "grey33", lwd = 0.75)
-abline(a=0,b=1, lty = 9, col="grey33")
-text(-11.5,3,expression(bold("PalMOS—PAWS\nSpearman's ρ = 0.989\nn = 719\nCF = 0.987")))
-
-#text(-13.9,1.75, expression(bold("CF = 0.987")))
-points(daily.palmos$Air.Temp[1:719], daily.paws$Air.Temp[1:719], col="black")
-
-lsf <- lm(daily.paws$Air.Temp[1:719] ~ daily.palmos$Air.Temp[1:719]) # lm(y ~ x)
-summary(lsf)
-# rmse
-rmse <- sqrt(mean(lsf$residuals^2))
-round(rmse,1)
-
-
+       xlim=c(-17,7), ylim=c(-17,7), col="transparent", cex.lab=1.5, cex.axis=1.5)
+        abline(v=c(-15,-10,-5,0,5), h=c(-15,-10,-5,0,5), lty = 9, col = "grey33", lwd = 0.75)
+        abline(a=0,b=1, lty = 9, col="grey33")
+        text(-11.5,3,expression(bold("PalMOS—PAWS\nSpearman's ρ = 0.989\nn = 719\nCF = 0.987")))
+        points(daily.palmos$Air.Temp[1:719], daily.paws$Air.Temp[1:719], col="black")
+        
+        lsf <- lm(daily.paws$Air.Temp[1:719] ~ daily.palmos$Air.Temp[1:719]) # lm(y ~ x)
+        summary(lsf)
+        # rmse
+        rmse <- sqrt(mean(lsf$residuals^2))
+        round(rmse,1)
 }
   addfiglab("(a)")
   
@@ -338,23 +305,7 @@ round(rmse,1)
          pch=c(15), pt.cex = 2, pt.lwd=3, col="black")
  }
 addfiglab("(c)")
-  
 
-
-  ### Fig SX Temperature residuals #####
-  #par(mar=c(4,4.5,0.5,0.5))
-  {
-    lsf <- lm(daily.paws$Air.Temp[1:719] ~ daily.palmos$Air.Temp[1:719]) # lm(y ~ x)
-    summary(lsf)
-    
-    residuals <- residuals(lsf)
-    #plot(daily.palmos$Air.Temp[1:719], residuals, main = "Residual Plot", xlab = "Predictor Variable", ylab = "Residuals") 
-    plot(fitted(lsf), residuals, cex.axis=1.5, cex.lab=1.5, cex=1.5,
-         xlab = expression(bold("Fitted PalMOS air temperature (ºC)")), ylab = expression(bold("Residuals")))
-    abline(h = 0, col="red", lwd=2) 
-  }
-  addfiglab("(a)")
-  
   
   ## Relative humidity #####
     daily.paws$day - daily.palmos$day # should all be zero
@@ -366,41 +317,32 @@ addfiglab("(c)")
     
     rh.daily.palmos <- rh.daily.palmos[-c(235:248),]
     rh.daily.paws <- rh.daily.paws[-c(235:248),] #removes May 7 through May 20 2016 (which are missing in palmos)
-    # n= 705 # number of days in overlapping dataset for rel humidity
-
-    # Used to identify extended consecutive days where the daily mean humidity is zero or 100%    
-        # hundo <- rh.daily.palmos[rh.daily.palmos$Rel.Humidity==100,]
-        # hundo <- rh.daily.paws[rh.daily.paws$Rel.Humidity==100,]
-        # zero.rh <- rh.daily.palmos[rh.daily.palmos$Rel.Humidity==0,]
-        # zero.rh <- rh.daily.paws[rh.daily.paws$Rel.Humidity==0,]
 
 ### stats for Table S1 #####
-    cor.test(rh.daily.palmos$Rel.Humidity, rh.daily.paws$Rel.Humidity, method="spearman") # this ends Sept 7, 2017
+    cor.test(rh.daily.palmos$Rel.Humidity, rh.daily.paws$Rel.Humidity, method="spearman") 
     wilcox.test(rh.daily.palmos$Rel.Humidity, rh.daily.paws$Rel.Humidity,paired=TRUE)
        
-    ### Fig. 3a daily rh 1:1 plot #####
-    par(mfrow=c(2,3))
-    par(mar=c(4,6,0.5,0.5))
+### Fig. 3a daily rh 1:1 plot #####
+par(mfrow=c(2,3))
+par(mar=c(4,6,0.5,0.5))
 {
       plot(rh.daily.palmos$Rel.Humidity, rh.daily.paws$Rel.Humidity, 
-         xlab=expression(bold("PalMOS rel. humidity (%)")), ylab=expression(bold("PAWS rel. humidity (%)")),     
-         #main="Relative humidity", 
+         xlab=expression(bold("PalMOS rel. humidity (%)")), ylab=expression(bold("PAWS rel. humidity (%)")),
          xlim=c(48,100), ylim=c(48,100),
          cex.lab=1.5, cex.axis=1.5, cex=1.5) 
     abline(v=c(50,60,70,80,90,100), h=c(50,60,70,80,90,100), lty = 9, col = "grey33", lwd = 0.75)
     abline(a=0,b=1, lty = 9, col="grey33")
     text(61,90,expression(bold("PalMOS-PAWS\nSpearman's ρ = 0.794\nn = 705\nCF = 0.855")))
-    #text(53,88,expression(bold("CF = 0.855")))
+
     lsf <- lm(rh.daily.paws$Rel.Humidity ~ rh.daily.palmos$Rel.Humidity) # lm(y ~ x)
     summary(lsf)
     # rmse
     rmse <- sqrt(mean(lsf$residuals^2))
     round(rmse,1)
-    
-    }  
-    addfiglab("(a)") 
-    ### Fig 3b monthly rh PalMOS-PAWs overlap #####
+}  
+addfiglab("(a)") 
 
+### Fig 3b monthly rh PalMOS-PAWs overlap #####
 {
       mo_rh.daily.palmos <- rh.daily.palmos %>%
       group_by(month) %>%
@@ -420,9 +362,9 @@ addfiglab("(c)")
            pch=c(0,1), pt.cex = 1.5, pt.lwd=3, col=c(alpha("#ca0020",0.9), alpha("#0571b0",0.7)))
     
     } 
-    addfiglab("(b)")
+addfiglab("(b)")
 
-### Fig 3c mean monthly differencs #####
+### Fig 3c mean monthly differences #####
 {
    diff_rh <- mo_rh.daily.paws$Rel.Humidity - mo_rh.daily.palmos$Rel.Humidity
 
@@ -437,26 +379,13 @@ addfiglab("(c)")
          bg="transparent", bty="n",
          pch=15, pt.cex = 2, col="black")
   }
-
 addfiglab("(c)")
 
-mean(diff_rh)
-
-
-### Fig SX RH residuals #####
-{
-  lsf <- lm(rh.daily.paws$Rel.Humidity ~ rh.daily.palmos$Rel.Humidity) # lm(y ~ x)
-  summary(lsf)
-  residuals <- residuals(lsf)
-  #plot(rh.daily.palmos$Rel.Humidity, residuals, main = "Residual Plot", xlab = "Predictor Variable", ylab = "Residuals") 
-  
-  plot(fitted(lsf), residuals, cex.lab=1.5, cex.axis=1.5, cex=1.5,
-       xlab = expression(bold("Fitted PalMOS relative humidity (%)")), ylab = expression(bold("Residuals")))
-  abline(h = 0, col="red", lwd=2)
-}
-addfiglab("(b)")
-
-
+rm(rh.daily.palmos)
+rm(rh.daily.paws)
+rm(mo_rh.daily.palmos)
+rm(mo_rh.daily.paws)
+rm(palmos_zeros)
 ## Wind speed #####
   ### remove zeros in palmos and paws overlapping wind speed #####      
   {
@@ -466,14 +395,6 @@ addfiglab("(b)")
     #.    = 1 day               2017-05-12
     paws_wind <- paws
     paws_wind$ymd <- ymd(format(paws_wind$date, "%y%m%d"))
-    # paws_wind$ymd <- paws_wind$dates
-    # daily zeros - code to check exactly which days need to be removed
-    # paws_zeros <- daily.paws[daily.paws$WS_avg_2min == 0,]
-    # check out raw data zeros
-    # raw_paws_zeros <- paws[paws$WS.Avg.2min == 0,]
-    # raw_paws_zeros <- raw_paws_zeros[!is.na(raw_paws_zeros$day),]
-    # check out individual days with zeros
-    # apes<- raw_paws_zeros[raw_paws_zeros$ymd == "2016-05-07",]
     
     paws_wind <- paws_wind[paws_wind$ymd != "2016-05-07",]
     paws_wind <- paws_wind[paws_wind$ymd != "2016-05-08",]
@@ -507,10 +428,7 @@ addfiglab("(b)")
     # removed because windspeed was zero in palmos
     paws_wind <- paws_wind[paws_wind$ymd != "2016-05-11",]
     paws_wind <- paws_wind[paws_wind$ymd != "2016-07-28",]
-    
   
-    
-    
 # removes zeros in palmos: 
     #.    = 9 days             2016-05-11, 12, 13,14,15,16,17,18,19
     #.              begins at 2016-05-10 @ 16H 7M 58S
@@ -521,8 +439,6 @@ addfiglab("(b)")
     raw_palmos_zeros <- comb.palmos[comb.palmos$WS_avg_2min == 0,]
     raw_palmos_zeros <- raw_palmos_zeros[!is.na(raw_palmos_zeros$day),]
     
-    
-    #apes<- raw_palmos_zeros[raw_palmos_zeros$dates == "2016-07-30",]
     palmos_wind <- comb.palmos
     
     palmos_wind <- palmos_wind[palmos_wind$date != "2016-05-10",]
@@ -623,43 +539,8 @@ addfiglab("(b)")
   } 
   addfiglab("(a)")
 
-  
-
-  
-#### Fig SX wind speed residuals #####
-{ 
-  lsf <- lm(daily.paws.wind$WS_avg_2min ~ daily.palmos.wind$WS_avg_2min) # lm(y ~ x)
-  summary(lsf)
-  
-  residuals <- residuals(lsf)
-  #plot(daily.palmos.wind$WS_avg_2min, residuals, main = "Residual Plot", xlab = "Predictor Variable", ylab = "Residuals") 
-  plot(fitted(lsf), residuals, 
-       cex.axis=1.5, cex.lab=1.5, cex=1.5,
-       xlab = expression(bold("Fitted PalMOS wind speed (m/s)")), ylab = expression(bold("Residuals")))
-  abline(h = 0, col="red", lwd=2)
-}
-  addfiglab("(c)")  
-  
-  ### wind rose paws raw palmos comparison #####
-
-  # library(openair)
-  # head(paws_wind[1074840,])
-  # tail(palmos_wind[4754000,])
-  # 
-  # tail(palmos[4241646:4643126,])
-  # palmos_wind <- palmos_wind[4241646:4754106,] # 11 sep 2015 to 30 Sep 2017
-  # paws_wind <-  paws_wind[1:1167116,]
-  # 
-  # windRose(palmos_wind, ws ="WS_avg_2min", wd="WD_avg_2min", 
-  #          #ws2=paws$WS.Avg.2min, wd2 = paws$WD.Avg.2min,
-  #          hemisphere="southern",paddle=F, breaks = c(0, 5, 10, 15, 20),
-  #          main="2-min PalMOS: 11 Sep 2015 - 30 Sep 2017", max.freq = 20)
-  # windRose(paws_wind, ws ="WS.Avg.2min", wd="WD.Avg.2min", 
-  #          hemisphere="southern",paddle=F, breaks = c(0, 5, 10, 15, 20),
-  #          main="1-min PAWS: 11 Sep 2015 - 30 Sep 2017", max.freq = 20)
 
 ## Wind direction #####
-  library(plotly)
   theme_set(theme_bw()) 
   # https://plotly.com/r/polar-chart/
   # palmos wind by month (raw data)
@@ -688,7 +569,7 @@ addfiglab("(b)")
                   #color= ~palmos_bymonth_mo$month, # this makes crazy plot axes
                   #colors = colors_map,
                   marker = list(
-                    color = "#3B4552", #colors = "#8090c7",
+                    color = "#3B4552", 
                     opacity = 1.0,
                     symbol = 'square',
                     size = 20, rotation = 90
@@ -699,7 +580,7 @@ addfiglab("(b)")
                               mode = 'markers',
                               name = "Feb",
                               marker = list(
-                                color = "#C0C0C0", #colors = "#8090c7",
+                                color = "#C0C0C0", 
                                 opacity = 1.0,
                                 symbol = 'square',
                                 size = 20, rotation = 90
@@ -711,7 +592,7 @@ addfiglab("(b)")
                               mode = 'markers',
                               name = "Mar",
                               marker = list(
-                                color = "darkorange", #colors = "#8090c7",
+                                color = "darkorange", 
                                 opacity = 1.0,
                                 symbol = 'square',
                                 size = 20, rotation = 90
@@ -722,7 +603,7 @@ addfiglab("(b)")
                             mode = 'markers',
                             name = "Apr",
                             marker = list(
-                              color = "#F4BA45", #colors = "#8090c7",
+                              color = "#F4BA45", 
                               opacity = 1.0,
                               symbol = 'square',
                               size = 20, rotation = 90
@@ -733,7 +614,7 @@ addfiglab("(b)")
                               mode = 'markers',
                               name = "May",
                               marker = list(
-                                color = "#F1E084", #colors = "#8090c7",
+                                color = "#F1E084", 
                                 opacity = 1.0,
                                 symbol = 'square',
                                 size = 20, rotation = 90
@@ -744,7 +625,7 @@ addfiglab("(b)")
                               mode = 'markers',
                               name = "Jun",
                               marker = list(
-                                color = "#040378", #colors = "#8090c7",
+                                color = "#040378",
                                 opacity = 1.0,
                                 symbol = 'square',
                                 size = 20, rotation = 90
@@ -755,7 +636,7 @@ addfiglab("(b)")
                               mode = 'markers',
                               name = "Jul",
                               marker = list(
-                                color = "#3232BA", #colors = "#8090c7",
+                                color = "#3232BA", 
                                 opacity = 1.0,
                                 symbol = 'square',
                                 size = 20, rotation = 90
@@ -862,29 +743,13 @@ addfiglab("(b)")
   
 ### Fig 4c PAWS polar scatter plot by month ##### 
   {  
-    # fig1 <- plot_ly(paws_bymonth_mo,
-    #                 type = 'scatterpolar',
-    #                 r = paws_bymonth_mo$rep_ws[paws_bymonth_mo$month=="1"],
-    #                 theta = paws_bymonth_mo$wd[paws_bymonth_mo$month=="1"],
-    #                 mode = 'markers',
-    #                 name = "Jan",
-    #                 #color= ~paws_bymonth_mo$month, # this makes crazy plot axes
-    #                 #colors = colors_map,
-    #                 marker = list(
-    #                   color = "black", #colors = "#8090c7",
-    #                   opacity = 0.45,
-    #                   symbol = 'square',
-    #                   size = 20, rotation = 90
-    #                 ))
-    
-      
     {
       fig1 <- fig1 %>% add_trace( r = paws_bymonth_mo$rep_ws[paws_bymonth_mo$month=="1"],
                                   theta = paws_bymonth_mo$wd[paws_bymonth_mo$month=="1"],
                                   mode = 'markers',
                                   name = "Jan",
                                   marker = list(
-                                    color = "#3B4552", #colors = "#8090c7",
+                                    color = "#3B4552", 
                                     opacity = 1.0,
                                     symbol = 'circle',
                                     size = 20, rotation = 90
@@ -895,7 +760,7 @@ addfiglab("(b)")
                                   mode = 'markers',
                                   name = "Feb",
                                   marker = list(
-                                    color = "#C0C0C0", #colors = "#8090c7",
+                                    color = "#C0C0C0",
                                     opacity = 1.0,
                                     symbol = 'circle',
                                     size = 20, rotation = 90
@@ -907,7 +772,7 @@ addfiglab("(b)")
                                   mode = 'markers',
                                   name = "Mar",
                                   marker = list(
-                                    color = "darkorange", #colors = "#8090c7",
+                                    color = "darkorange", 
                                     opacity = 1.0,
                                     symbol = 'circle',
                                     size = 20, rotation = 90
@@ -918,7 +783,7 @@ addfiglab("(b)")
                                   mode = 'markers',
                                   name = "Apr",
                                   marker = list(
-                                    color = "#F4BA45", #colors = "#8090c7",
+                                    color = "#F4BA45", 
                                     opacity = 1.0,
                                     symbol = 'circle',
                                     size = 20, rotation = 90
@@ -929,7 +794,7 @@ addfiglab("(b)")
                                   mode = 'markers',
                                   name = "May",
                                   marker = list(
-                                    color = "#F1E084", #colors = "#8090c7",
+                                    color = "#F1E084", 
                                     opacity = 1.0,
                                     symbol = 'circle',
                                     size = 20, rotation = 90
@@ -940,7 +805,7 @@ addfiglab("(b)")
                                   mode = 'markers',
                                   name = "Jun",
                                   marker = list(
-                                    color = "#040378", #colors = "#8090c7",
+                                    color = "#040378", 
                                     opacity = 1.0,
                                     symbol = 'circle',
                                     size = 20, rotation = 90
@@ -951,7 +816,7 @@ addfiglab("(b)")
                                   mode = 'markers',
                                   name = "Jul",
                                   marker = list(
-                                    color = "#3232BA", #colors = "#8090c7",
+                                    color = "#3232BA", 
                                     opacity = 1.0,
                                     symbol = 'circle',
                                     size = 20, rotation = 90
@@ -962,7 +827,7 @@ addfiglab("(b)")
                                   mode = 'markers',
                                   name = "Aug",
                                   marker = list(
-                                    color = "#458AC9", #colors = "#8090c7",
+                                    color = "#458AC9",
                                     opacity = 1.0,
                                     symbol = 'circle',
                                     size = 20, rotation = 90
@@ -973,7 +838,7 @@ addfiglab("(b)")
                                   mode = 'markers',
                                   name = "Sep",
                                   marker = list(
-                                    color = "#72559D", #colors = "#8090c7",
+                                    color = "#72559D", 
                                     opacity = 1.0,
                                     symbol = 'circle',
                                     size = 20, rotation = 90
@@ -985,7 +850,7 @@ addfiglab("(b)")
                                   mode = 'markers',
                                   name = "Oct",
                                   marker = list(
-                                    color = "#9368D1", #colors = "#8090c7",
+                                    color = "#9368D1", 
                                     opacity = 1.0,
                                     symbol = 'circle',
                                     size = 20, rotation = 90
@@ -997,7 +862,7 @@ addfiglab("(b)")
                                   mode = 'markers',
                                   name = "Nov",
                                   marker = list(
-                                    color = "#9592DB", #colors = "#8090c7",
+                                    color = "#9592DB", 
                                     opacity = 1.0,
                                     symbol = 'circle',
                                     size = 20, rotation = 90
@@ -1009,7 +874,7 @@ addfiglab("(b)")
                                   mode = 'markers',
                                   name = "Dec",
                                   marker = list(
-                                    color = "#000000", #colors = "#8090c7",
+                                    color = "#000000", 
                                     opacity = 1.0,
                                     symbol = 'circle',
                                     size = 20, rotation = 90
@@ -1059,25 +924,6 @@ diff_ws <- paws_bymonth_mo$rep_ws - palmos_bymonth_mo$rep_ws
 addfiglab("(b)")
 
 
-#####princax analysis of principal variance #####
-#### dataframes for matlab princax function #####
-# w <- cbind.data.frame(daily.palmos.wind$u, daily.palmos.wind$v)
-#   write.csv(w, "palmos_w.csv")
-   
-# w <- cbind.data.frame(daily.paws.wind$u, daily.paws.wind$v)
-#  write.csv(w, "paws_w.csv")
-  
-
-  
-  
-  
-## Precipitation #####  
-  # values > 200 mm in one day are deemed erroneous; Turner et al "The dominant role
-  # of extreme precipitation in Antarctica..." showed that 87mm is max on West AP
-  
-  # values>200 are replaced with NA
-  # pal_adj[, 9][pal_adj[, 9] >= 200] <- NA
-
   
   ### remove very high precip values from palmos dataset #####
   {  # dates: 2015-11-25, 2015-11-27, 2015-12-22, 2016-8-8
@@ -1088,14 +934,14 @@ addfiglab("(b)")
     daily.palmos_precip$precip.melted
     
     daily.palmos_precip <- subset(daily.palmos_precip, precip.melted <200)
-    # same dates need to be removed from the paws precip comparison
+    # same dates were removed from the paws precip comparison
     # removed dates in paws that are the four extremely large precip values in palmos
     daily.paws_precip <- daily.paws_precip[-c(73,75,100,328),]
     daily.paws_precip$day - daily.palmos_precip$day
     
   }
   ### stats for Table S1 #####
-  # compare palmos and paws precip statistical tests
+  # compare palmos and paws precip
   cor.test(daily.palmos_precip$precip.melted, daily.paws_precip$precip.melted, method="spearman")
   wilcox.test(daily.palmos_precip$precip.melted, daily.paws_precip$precip.melted, paired=T)
   
@@ -1109,21 +955,13 @@ addfiglab("(b)")
   ### 12-mo catch ratios ##### 
   {
     par(mfrow=c(3,4))
-    # sept 2015 == 1.3 *(only 2015) or     2.4 -> (n=28, 2015 & 2016)
+    # sept 2015 == 1.3 *(only 2015)
     {
       sep_2015.palmos <- subset(daily.palmos_precip, year=="2015" & month=="9")
       sep_2015.paws <- subset(daily.paws_precip, year=="2015" & month=="9")
       
       cor.test(sep_2015.palmos$precip.melted, sep_2015.paws$precip.melted) #palmos vs paws
-      #shapiro.test(sep_2015.palmos$precip.melted) 
-      #t.test(sep_2015.palmos$precip.melted, sep_2015.paws$precip.melted) # palmos and paws are not different
-      plot(sep_2015.palmos$precip.melted, sep_2015.paws$precip.melted,
-           #xlim=c(0,40),ylim=c(0,40)
-      ) #palmos vs paws
-      plot(sep_2015.paws$precip.melted, type="l")
-      lines(sep_2015.palmos$precip.melted, type="l", col="blue")
-      sep_2015_catch <-      sum(sep_2015.paws$precip.melted) / 
-        (sum(sep_2015.palmos$precip.melted))
+      sep_2015_catch <- sum(sep_2015.paws$precip.melted) / (sum(sep_2015.palmos$precip.melted))
     }
     sep_2015_catch
     
@@ -1132,32 +970,18 @@ addfiglab("(b)")
       oct_2015.palmos <- subset(daily.palmos_precip, year =="2015" & month=="10") 
       oct_2015.paws <- subset(daily.paws_precip, year =="2015" & month=="10")
       
-      cor.test(oct_2015.palmos$precip.melted, oct_2015.paws$precip.melted) #palmos vs paws
-      #shapiro.test(oct_2015.paws$precip.melted)
-      #t.test(oct_2015.palmos$precip.melted, oct_2015.paws$precip.melted) # palmos and paws are not different
-      plot(oct_2015.palmos$precip.melted, oct_2015.paws$precip.melted,
-           xlim=c(0,30),ylim=c(0,30)) #palmos vs paws
-      
-      oct_2015_catch <-      (sum(oct_2015.paws$precip.melted)) / 
-        sum(oct_2015.palmos$precip.melted)    
+      cor.test(oct_2015.palmos$precip.melted, oct_2015.paws$precip.melted)
+      oct_2015_catch <- sum(oct_2015.paws$precip.melted) /  sum(oct_2015.palmos$precip.melted)    
     }
     oct_2015_catch
     
     # nov 2015 == 1.4
     {
-      # remove Nov 1,2,3 from ERA5 to match the missing palmos/paws datasets n=27, not n=30
-      
       nov_2015.palmos <- subset(daily.palmos_precip, year =="2015" & month=="11" & precip.melted<200) 
       nov_2015.paws <- subset(daily.paws_precip, year =="2015" & month=="11" & date!="2015-11-27")
       nov_2015.paws <- subset(nov_2015.paws, date!="2015-11-25")
-      
-      plot(nov_2015.palmos$precip.melted, nov_2015.paws$precip.melted,
-           xlim=c(0,30),ylim=c(0,30)) #palmos vs paws
-      cor.test(nov_2015.palmos$precip.melted, nov_2015.paws$precip.melted) #palmos vs paws
-      #shapiro.test(nov_2015.paws$precip.melted) 
-      #t.test(nov_2015.palmos$precip.melted, nov_2015.paws$precip.melted) # palmos and paws are not different
-      
-      nov_2015_catch <-      sum(nov_2015.paws$precip.melted) / (sum(nov_2015.palmos$precip.melted))
+      cor.test(nov_2015.palmos$precip.melted, nov_2015.paws$precip.melted) 
+      nov_2015_catch <-  sum(nov_2015.paws$precip.melted) / (sum(nov_2015.palmos$precip.melted))
     }
     nov_2015_catch
     
@@ -1166,12 +990,7 @@ addfiglab("(b)")
       dec_2015.palmos <- subset(daily.palmos_precip, year =="2015" & month=="12" & precip.melted<200) 
       dec_2015.paws <- subset(daily.paws_precip, year =="2015" & month=="12"  & date!="2015-12-22")
       
-      plot(dec_2015.palmos$precip.melted, dec_2015.paws$precip.melted) #palmos vs paws
-      cor.test(dec_2015.palmos$precip.melted, dec_2015.paws$precip.melted) #palmos vs paws
-      #t.test(dec_2015.palmos$precip.melted, dec_2015.paws$precip.melted) # palmos and paws are not different
-      plot(dec_2015.paws$precip.melted, type="l") #palmos vs paws
-      lines(dec_2015.palmos$precip.melted, type="l", col="blue") #palmos vs paws
-      
+      cor.test(dec_2015.palmos$precip.melted, dec_2015.paws$precip.melted) 
       dec_2015_catch <- sum(dec_2015.paws$precip.melted) / sum(dec_2015.palmos$precip.melted)
     }
     dec_2015_catch
@@ -1181,10 +1000,7 @@ addfiglab("(b)")
       jan_2016.palmos <- subset(daily.palmos_precip, year =="2016" & month=="1") 
       jan_2016.paws <- subset(daily.paws_precip, year =="2016" & month=="1")
       
-      cor.test(jan_2016.palmos$precip.melted, jan_2016.paws$precip.melted) #palmos vs paws
-      #t.test(jan_2016.palmos$precip.melted, jan_2016.paws$precip.melted) # palmos and paws are not different
-      plot(jan_2016.paws$precip.melted, type="l") #palmos vs paws
-      lines(jan_2016.palmos$precip.melted, type="l", col="blue") 
+      cor.test(jan_2016.palmos$precip.melted, jan_2016.paws$precip.melted)
       jan_2016_catch <- sum(jan_2016.paws$precip.melted) / sum(jan_2016.palmos$precip.melted)
       
     }
@@ -1195,14 +1011,8 @@ addfiglab("(b)")
       feb_2016.palmos <- subset(daily.palmos_precip, year =="2016" & month=="2") 
       feb_2016.paws <- subset(daily.paws_precip, year =="2016" & month=="2")
       
-      cor.test(feb_2016.palmos$precip.melted, feb_2016.paws$precip.melted) #palmos vs paws
-      #t.test(feb_2016.palmos$precip.melted, feb_2016.paws$precip.melted) # palmos and paws are not different
-      plot(feb_2016.palmos$precip.melted, feb_2016.paws$precip.melted) #palmos vs paws
-      plot(feb_2016.paws$precip.melted, type="l") 
-      lines(feb_2016.palmos$precip.melted, type="l", col="blue") 
-      
+      cor.test(feb_2016.palmos$precip.melted, feb_2016.paws$precip.melted) 
       feb_2016_catch <- sum(feb_2016.paws$precip.melted) / sum(feb_2016.palmos$precip.melted)
-      
     }
     feb_2016_catch
     
@@ -1211,14 +1021,8 @@ addfiglab("(b)")
       mar_2016.palmos <- subset(daily.palmos_precip, year =="2016" & month=="3") 
       mar_2016.paws <- subset(daily.paws_precip, year =="2016" & month=="3")
       
-      cor.test(mar_2016.palmos$precip.melted, mar_2016.paws$precip.melted) #palmos vs paws
-      #t.test(mar_2016.palmos$precip.melted, mar_2016.paws$precip.melted) # palmos and paws are not different
-      plot(mar_2016.palmos$precip.melted, mar_2016.paws$precip.melted) #palmos vs paws
-      plot(mar_2016.paws$precip.melted, type="l") 
-      lines(mar_2016.palmos$precip.melted, type="l", col="blue") 
-      
+      cor.test(mar_2016.palmos$precip.melted, mar_2016.paws$precip.melted)
       mar_2016_catch <- sum(mar_2016.paws$precip.melted) / sum(mar_2016.palmos$precip.melted)
-      
     }
     mar_2016_catch
     
@@ -1227,14 +1031,8 @@ addfiglab("(b)")
       apr_2016.palmos <- subset(daily.palmos_precip, year =="2016" & month=="4") 
       apr_2016.paws <- subset(daily.paws_precip, year =="2016" & month=="4")
       
-      cor.test(apr_2016.palmos$precip.melted, apr_2016.paws$precip.melted) #palmos vs paws
-      #t.test(apr_2016.palmos$precip.melted, apr_2016.paws$precip.melted) # palmos and paws are not different
-      plot(apr_2016.palmos$precip.melted, apr_2016.paws$precip.melted) #palmos vs paws
-      plot(apr_2016.paws$precip.melted, type = "l")
-      lines(apr_2016.palmos$precip.melted, type = "l", col="blue")
-      
+      cor.test(apr_2016.palmos$precip.melted, apr_2016.paws$precip.melted)
       apr_2016_catch <- sum(apr_2016.paws$precip.melted) / sum(apr_2016.palmos$precip.melted)
-      
     }
     apr_2016_catch
     
@@ -1243,14 +1041,8 @@ addfiglab("(b)")
       may_2016.palmos <- subset(daily.palmos_precip, year =="2016" & month=="5") 
       may_2016.paws <- subset(daily.paws_precip, year =="2016" & month=="5")
       
-      cor.test(may_2016.palmos$precip.melted, may_2016.paws$precip.melted) #palmos vs paws
-      #t.test(may_2016.palmos$precip.melted, may_2016.paws$precip.melted) # palmos and paws are not different
-      plot(may_2016.palmos$precip.melted, may_2016.paws$precip.melted) #palmos vs paws
-      plot(may_2016.paws$precip.melted, type="l") 
-      lines(may_2016.palmos$precip.melted, type="l", col="blue") 
-      
+      cor.test(may_2016.palmos$precip.melted, may_2016.paws$precip.melted)
       may_2016_catch <- sum(may_2016.paws$precip.melted) / sum(may_2016.palmos$precip.melted)
-      
     }
     may_2016_catch
     
@@ -1259,14 +1051,8 @@ addfiglab("(b)")
       jun_2016.palmos <- subset(daily.palmos_precip, year =="2016" & month=="6") 
       jun_2016.paws <- subset(daily.paws_precip, year =="2016" & month=="6")
       
-      cor.test(jun_2016.palmos$precip.melted, jun_2016.paws$precip.melted) #palmos vs paws
-      # t.test(jun_2016.palmos$precip.melted, jun_2016.paws$precip.melted) # palmos and paws are not different
-      plot(jun_2016.palmos$precip.melted, jun_2016.paws$precip.melted) #palmos vs paws
-      plot(jun_2016.paws$precip.melted, type="l") #palmos vs paws
-      lines(jun_2016.palmos$precip.melted, type="l", col="blue") #palmos vs paws
-      
+      cor.test(jun_2016.palmos$precip.melted, jun_2016.paws$precip.melted) 
       jun_2016_catch <- sum(jun_2016.paws$precip.melted) / sum(jun_2016.palmos$precip.melted)
-      
     }
     jun_2016_catch
     
@@ -1275,14 +1061,8 @@ addfiglab("(b)")
       jul_2016.palmos <- subset(daily.palmos_precip, year =="2016" & month=="7") 
       jul_2016.paws <- subset(daily.paws_precip, year =="2016" & month=="7")
       
-      cor.test(jul_2016.palmos$precip.melted, jul_2016.paws$precip.melted) #palmos vs paws
-      #t.test(jul_2016.palmos$precip.melted, jul_2016.paws$precip.melted) # palmos and paws are  different
-      plot(jul_2016.palmos$precip.melted, jul_2016.paws$precip.melted) #palmos vs paws
-      plot(jul_2016.paws$precip.melted, type="l")
-      lines(jul_2016.palmos$precip.melted, type="l", col="blue")
-      
+      cor.test(jul_2016.palmos$precip.melted, jul_2016.paws$precip.melted)
       jul_2016_catch <- sum(jul_2016.paws$precip.melted) / sum(jul_2016.palmos$precip.melted)
-      
     }
     jul_2016_catch
     
@@ -1291,86 +1071,12 @@ addfiglab("(b)")
       aug_2016.palmos <- subset(daily.palmos_precip, year =="2016" & month=="8" & precip.melted<200) 
       aug_2016.paws <- subset(daily.paws_precip, year =="2016" & month=="8" & date!="2016-08-08")
       
-      cor.test(aug_2016.palmos$precip.melted, aug_2016.paws$precip.melted) #palmos vs paws
-      #t.test(aug_2016.palmos$precip.melted, aug_2016.paws$precip.melted) # palmos and paws are not different
-      plot(aug_2016.palmos$precip.melted, aug_2016.paws$precip.melted) #palmos vs paws
-      plot(aug_2016.paws$precip.melted, type="l") 
-      lines(aug_2016.palmos$precip.melted, type="l", col="blue") 
-      
+      cor.test(aug_2016.palmos$precip.melted, aug_2016.paws$precip.melted) 
       aug_2016_catch <- sum(aug_2016.paws$precip.melted) / sum(aug_2016.palmos$precip.melted)
-      
     }
     aug_2016_catch
-    
   } 
   
-  ### seasonal catch ratios #####
-  {
-    # JJA
-    seas_2015.palmos1 <- subset(daily.palmos_precip,  month=="6")
-    seas_2015.palmos2 <- subset(daily.palmos_precip,  month=="7")
-    seas_2015.palmos3 <- subset(daily.palmos_precip,  month=="8")
-    seas_palmos_cr <- rbind.data.frame(seas_2015.palmos1,seas_2015.palmos2,seas_2015.palmos3)
-    
-    seas_2015.paws1 <- subset(daily.paws_precip, month=="6")
-    seas_2015.paws2 <- subset(daily.paws_precip, month=="7")
-    seas_2015.paws3 <- subset(daily.paws_precip, month=="8")
-    seas_paws_cr <-  rbind.data.frame(seas_2015.paws1, seas_2015.paws2, seas_2015.paws3)
-    
-    jja_cr <- sum(seas_paws_cr$precip.melted) / sum(seas_palmos_cr$precip.melted)
-    jja_cr # 3.3
-    
-    
-    # SON
-    seas_2015.palmos1 <- subset(daily.palmos_precip,  month=="9")
-    seas_2015.palmos2 <- subset(daily.palmos_precip,  month=="10")
-    seas_2015.palmos3 <- subset(daily.palmos_precip,  month=="11")
-    seas_palmos_cr <- rbind.data.frame(seas_2015.palmos1,seas_2015.palmos2,seas_2015.palmos3)
-    
-    seas_2015.paws1 <- subset(daily.paws_precip, month=="9")
-    seas_2015.paws2 <- subset(daily.paws_precip, month=="10")
-    seas_2015.paws3 <- subset(daily.paws_precip, month=="11")
-    seas_paws_cr <-  rbind.data.frame(seas_2015.paws1, seas_2015.paws2, seas_2015.paws3)
-    
-    son_cr <- sum(seas_paws_cr$precip.melted) / sum(seas_palmos_cr$precip.melted)
-    son_cr # 1.7
-    
-    
-    # DJF
-    seas_2015.palmos1 <- subset(daily.palmos_precip,  month=="12")
-    seas_2015.palmos2 <- subset(daily.palmos_precip,  month=="1")
-    seas_2015.palmos3 <- subset(daily.palmos_precip,  month=="2")
-    seas_palmos_cr <- rbind.data.frame(seas_2015.palmos1,seas_2015.palmos2,seas_2015.palmos3)
-    
-    seas_2015.paws1 <- subset(daily.paws_precip, month=="12")
-    seas_2015.paws2 <- subset(daily.paws_precip, month=="1")
-    seas_2015.paws3 <- subset(daily.paws_precip, month=="2")
-    seas_paws_cr <-  rbind.data.frame(seas_2015.paws1, seas_2015.paws2, seas_2015.paws3)
-    
-    djf_cr <- sum(seas_paws_cr$precip.melted) / sum(seas_palmos_cr$precip.melted)
-    djf_cr # 2.2
-    
-    
-    # MAM
-    seas_2015.palmos1 <- subset(daily.palmos_precip,  month=="3")
-    seas_2015.palmos2 <- subset(daily.palmos_precip,  month=="4")
-    seas_2015.palmos3 <- subset(daily.palmos_precip,  month=="5")
-    seas_palmos_cr <- rbind.data.frame(seas_2015.palmos1,seas_2015.palmos2,seas_2015.palmos3)
-    
-    seas_2015.paws1 <- subset(daily.paws_precip, month=="3")
-    seas_2015.paws2 <- subset(daily.paws_precip, month=="4")
-    seas_2015.paws3 <- subset(daily.paws_precip, month=="5")
-    seas_paws_cr <-  rbind.data.frame(seas_2015.paws1, seas_2015.paws2, seas_2015.paws3)
-    
-    mam_cr <- sum(seas_paws_cr$precip.melted) / sum(seas_palmos_cr$precip.melted)
-    mam_cr # 2.0
-    
-  }
-  
-  # JJA = 3.3
-  # SON = 1.6
-  # DJF = 2.2
-  # MAM = 2.0
   
   ### Fig 5a daily precip 1:1 plot #####
   par(mfrow=c(2,3))
@@ -1385,7 +1091,7 @@ addfiglab("(b)")
     abline(v=c(0,5,10,15,20,25,30), h=c(0,5,10,15,20,25,30), lty = 9, col = "grey33", lwd = 0.75)
     abline(a=0,b=1, lty = 9, col="grey33")
     text(25,2,expression(bold("PalMOS—PAWS\nSpearman's ρ = 0.834\nn = 355")))
-    #text(20.3,0,expression(bold("CF = 1.7")))
+    
     lsf <- lm(daily.paws_precip$precip.melted ~ daily.palmos_precip$precip.melted) # lm(y ~ x)
     summary(lsf)
     # rmse
@@ -1397,8 +1103,6 @@ addfiglab("(b)")
   addfiglab("(a)")
   
   ### Fig 5b Catch ratios annual & monthly  plotted #####
-  #par(mfrow=c(2,2))
-  
   {
     ann_catch_ratio <- sum(daily.paws_precip$precip.melted, na.rm=T) / sum(daily.palmos_precip$precip.melted, na.rm=T)
     month_ann_catch_ratio <- c(jan_2016_catch,
@@ -1426,16 +1130,31 @@ addfiglab("(b)")
   addfiglab("(b)")
   
 
+  
+ 
+rm(all.catch.ratios, fig1, apr_2016.palmos, apr_2016.paws, aug_2016.palmos, aug_2016.paws,
+   dec_2015.palmos, dec_2015.paws, feb_2016.palmos, feb_2016.paws,
+   jan_2016.palmos,jan_2016.paws, jul_2016.palmos, jul_2016.paws,
+   jun_2016.palmos, jun_2016.paws, mar_2016.palmos, mar_2016.paws,
+   may_2016.palmos, may_2016.paws, nov_2015.palmos, nov_2015.paws,
+   oct_2015.palmos, oct_2015.paws, sep_2015.palmos, sep_2015.paws,
+   comb.palmos, daily.palmos_precip, daily.palmos.wind,
+   daily.paws_precip, daily.paws.wind, mo_palmos,mo_paws,
+   palmos_bymonth_mo, palmos_wind, palmos_zeros, paws, paws_bymonth_mo,
+   paws_wind, raw_palmos_zeros, ann_catch_ratio, apr_2016_catch, 
+   aug_2016_catch, catch.ratio,
+   dec_2015_catch, diff, diff_rh, diff_ws, feb_2016_catch, jan_2016_catch,
+   jul_2016_catch, jun_2016_catch, mar_2016_catch, may_2016_catch,
+   meandiff, month_ann_catch_ratio, nov_2015_catch, oct_2015_catch,
+   rmse, lsf, sep_2015_catch, wind_dir_trig_from_degrees, wind_dir_trig_to,
+   wind_dir_trig_to_degrees, x)
+
 #  Setup Adjusted PalMOS dataset #####
 setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate/ERA5 adjustment data for Palmer")
 pal <- read.csv("table_214.csv",header=TRUE)
 head(pal,2)
 
-# pal$Time <- hms(pal$Time)
- pal$dates <- ymd(pal$Date)
-# Combine date and time and convert to POSIXct
-#pal$datetime <- as.POSIXct(paste(pal$dates, pal$Time), format = "%Y-%m-%d %H:%M:%S")
-
+pal$dates <- ymd(pal$Date)
 pal$datetime <- paste(pal$Date, pal$Time)
 pal$datetime <- as.POSIXct(pal$datetime, format = "%Y-%m-%d %H:%M:%S", tz="UTC")
 
@@ -1519,17 +1238,16 @@ pal$day <- as.numeric(pal$day,na.rm=T)
   # remove missing from PalMOS
   pal_rh_daily <- pal_rh_daily[-c(307,533),] #461
   
-  
-  # next do temperature
-  
+
+
   maws_daily_temp$day - pal_temp_daily$day
   
-  # palmos is missihg:  2008-04-24, 2008-06-06, 2008-06-07, 2008-07-14, 2008-12-17, 2009-03-02
+  # PalMOS is missing:  2008-04-24, 2008-06-06, 2008-06-07, 2008-07-14, 2008-12-17, 2009-03-02
   # remove missing from MAWS
   maws_daily_temp <- maws_daily_temp[-c(480,523,524,561,717,792,802),]
   # MAWS is missing no rows
   
-  ## Table XX stats #####
+  ## Table stats #####
   cor.test(pal_temp_daily$Air.Temp, maws_daily_temp$Air.Temp, method="spearman")
   
   ## Fig S4a 1:1 MAWS-PalMOS overlapping temperature #####
@@ -1545,7 +1263,7 @@ pal$day <- as.numeric(pal$day,na.rm=T)
     abline(v=c(-15,-10,-5,0,5), h=c(-15,-10,-5,0,5), lty = 9, col = "grey33", lwd = 0.75)
     abline(a=0,b=1, lty = 9, col="grey33")
     text(-10,3,expression(bold("MAWS-PalMOS\nSpearman's ρ = 0.990\nn = 1238\nCF = 0.985")))
-    #text(-11.7,3.7,expression(bold("CF = 0.985")))
+    
     lsf <- lm(maws_daily_temp$Air.Temp ~ pal_temp_daily$Air.Temp) # lm(y ~ x)
     summary(lsf)
     
@@ -1602,26 +1320,8 @@ diff_maws_t <- mo_temp.daily.pal$Air.Temp - mo_temp.daily.maws$Air.Temp
   
   
   
-  
-  
-  
-  
-  
-  #### Fig Sx temperature residuals maws-palmos #####
-  {
-    lsf <- lm(maws_daily_temp$Air.Temp ~ pal_temp_daily$Air.Temp) # lm(y ~ x)
-    summary(lsf)
-    residuals <- residuals(lsf)
-    
-    plot(fitted(lsf), residuals, cex.lab=1.5, cex.axis=1.5, cex=1.5,
-         xlab = expression(bold("Fitted MAWS air temperature (ºC)")), ylab = expression(bold("Residuals")))
-    abline(h = 0, col="red", lwd=2)
-  }
-  addfiglab("(x)")
-  
-  
   # Relative humidity #####
-  ## Table xx stats #####
+  ## Table stats #####
   cor.test(pal_rh_daily$Rel.Humidity, maws_daily_rh$Rel.Humidity, method="spearman")
 
 ## Fig S4d 1:1 MAWS-PalMOS overlapping rel humidity #####
@@ -1638,10 +1338,9 @@ diff_maws_t <- mo_temp.daily.pal$Air.Temp - mo_temp.daily.maws$Air.Temp
     abline(v=c(40,50,60,70,80,90,100), h=c(40,50,60,70,80,90,100), lty = 9, col = "grey33", lwd = 0.75)
     abline(a=0,b=1, lty = 9, col="grey33")
     text(55,89,expression(bold("MAWS-PalMOS\nSpearman's ρ = 0.946\nn = 1087\nCF = 1.0721")))
-    #text(48.7,87,expression(bold("CF = 1.0721")))
-    lsf <- lm(maws_daily_rh$Rel.Humidity ~ pal_rh_daily$Rel.Humidity) # lm(y ~ x)
-    summary(lsf)
     
+    lsf <- lm(maws_daily_rh$Rel.Humidity ~ pal_rh_daily$Rel.Humidity) # lm(y ~ x)
+    summary(lsf) 
   }
   addfiglab("(d)")
   
@@ -1663,7 +1362,6 @@ diff_maws_t <- mo_temp.daily.pal$Air.Temp - mo_temp.daily.maws$Air.Temp
     points(mo_rh.daily.pal$month, mo_rh.daily.pal$Rel.Humidity, col="#0571b0", lwd=3,cex=1.5)
     legend("topleft", legend=c(expression(bold("MAWS")), expression(bold("PalMOS"))), bg="transparent", bty="n",
            pch=c(0,1), pt.cex = 1.5, pt.lwd=3, col=c(alpha("#ca0020",0.9), alpha("#0571b0",0.7)))
-    
   } 
   addfiglab("(e)")
   
@@ -1679,22 +1377,7 @@ diff_maws_t <- mo_temp.daily.pal$Air.Temp - mo_temp.daily.maws$Air.Temp
          pch=15, pt.cex = 1.5, col="black")
  }
   addfiglab("(f)")
-  
-  
-  ### Fig Sx temperature residuals maws-palmos #####
-  {
-    lsf <- lm(maws_daily_rh$Rel.Humidity ~ pal_rh_daily$Rel.Humidity) # lm(y ~ x)
-    summary(lsf)
-    residuals <- residuals(lsf)
-    
-    plot(fitted(lsf), residuals, cex.lab=1.5, cex.axis=1.5, cex=1.5,
-         xlab = expression(bold("Fitted MAWS relative humidity (%)")), ylab = expression(bold("Residuals")))
-    abline(h = 0, col="red", lwd=2)
-  }
-  addfiglab("(x)")
-  
-  #
-  
+
 }
 
 
@@ -1703,24 +1386,16 @@ diff_maws_t <- mo_temp.daily.pal$Air.Temp - mo_temp.daily.maws$Air.Temp
 #convert maws time to hms
 setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate/MAWS Data")
 maws <- read.csv("MAWS 1-minute rh_Temp 2006-2010.csv",header=TRUE)
-head(maws)
-#maws$time <- hms(maws$time)
+
 maws$year <- as.numeric(maws$year,na.rm=T)
 maws$month <- as.numeric(maws$month,na.rm=T)
 maws$day <- as.numeric(maws$day,na.rm=T)
 
 maws$Air_temp <- as.numeric(maws$Air_temp)
 maws$Rel_humidity <- as.numeric(maws$Rel_humidity) 
-#maws$dates <- as.Date(maws$dates)
 
 maws$datetime <- paste(maws$dates, maws$time)
 maws$datetime <- as.POSIXct(maws$datetime, format = "%Y-%m-%d %H:%M:%S", tz="UTC")
-
-# rel humidity (col=10) in pal from (rows) 06 Sep 2010 to 12 Oct 2010
-#pal <- pal[2934049:2960649,]
-
-# 26601 in pal 2-min
-# 26871 in maws 2-min raw data to fill in gap
 
 # 1-min MAWS rh     n= 37 days
 #palmos rh is erroneous beginning 06 September 2010 ending 12 oct 2010
@@ -1733,13 +1408,10 @@ as.data.frame(table(maws_rh$dates))
 ## apply Rel humidity CF adjustment on MAWS to fill in missing PalMOS #####
 # multiply 1-minute data by the CF
 maws_rh$adj_rh <- maws_rh$Rel_humidity * 1.0721 # CF for rel humidity
-# aply 2nd CF from palmos-paws adjustment so the data can be inserted easily below
-#maws_rh$adj_rh <- maws_rh$adj_rh * 0.855
 
 maws_rh <- na.omit(maws_rh)
-### panel plot for relative humidity 12-mo overlap
+### relative humidity 12-mo overlap
 {
-  par(mfrow=c(3,4))
   # sept 2015 == -5.8 sd 0.3
   {
     sep_2015.palmos <- subset(daily.palmos, month=="9")
@@ -1750,21 +1422,13 @@ maws_rh <- na.omit(maws_rh)
     
     cor.test(sep_2015.palmos$Rel.Humidity, sep_2015.paws$Rel.Humidity) #palmos vs paws
     t.test(sep_2015.palmos$Rel.Humidity, sep_2015.paws$Rel.Humidity, paired=TRUE) # palmos and paws are not different
-    #plot(sep_2015.palmos$Rel.Humidity, sep_2015.paws$Rel.Humidity)
-    
+     
     # calculate mean differences between palmos, and paws for each month in overlapping dataset
     sep_2015_mean_station_diff <- mean(sep_2015.paws$Rel.Humidity) - mean(sep_2015.palmos$Rel.Humidity)
     round(sep_2015_mean_station_diff, 1) # Palmos is more humid than PAWS (closer to ocean)
     sep_2015_sd_station_diff <- sd(sep_2015.paws$Rel.Humidity) - sd(sep_2015.palmos$Rel.Humidity)
     round(sep_2015_sd_station_diff, 1) 
-    
-    plot(sep_2015.palmos$Rel.Humidity, type="l", main="Sep-2015,2019",
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    # adjusted sep 2015
-    lines(sep_2015.palmos$Rel.Humidity + sep_2015_mean_station_diff, col="red",lty=3,lwd=2)
-    lines(sep_2015.paws$Rel.Humidity, col="blue")
-    legend("bottomright", legend=c("PalMOS","adj. PalMOS","PAWS"), col=c("red","red","blue"), lty=c(1,3,1), bty="n",cex=0.8)
-  }
+    }
   sep_2015_mean_station_diff
   
   # oct 2015 == -4.1 sd 0.1
@@ -1774,25 +1438,18 @@ maws_rh <- na.omit(maws_rh)
     
     cor.test(oct_2015.palmos$Rel.Humidity, oct_2015.paws$Rel.Humidity) #palmos vs paws
     t.test(oct_2015.palmos$Rel.Humidity, oct_2015.paws$Rel.Humidity) # palmos and paws are not different
-    # plot(oct_2015.palmos$Rel.Humidity, oct_2015.paws$Rel.Humidity)
     
     # calculate mean differences between era5, palmos, and paws for each month in overlapping dataset
     oct_2015_mean_station_diff <- mean(oct_2015.paws$Rel.Humidity) - mean(oct_2015.palmos$Rel.Humidity)
     round(oct_2015_mean_station_diff, 1) 
     oct_2015_sd_station_diff <- sd(oct_2015.paws$Rel.Humidity) - sd(oct_2015.palmos$Rel.Humidity)
     round(oct_2015_sd_station_diff, 1) 
-    
-    plot(oct_2015.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Oct-2015,2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    lines(oct_2015.palmos$Rel.Humidity+oct_2015_mean_station_diff, col="red",lty=3)
-    lines(oct_2015.paws$Rel.Humidity, col="blue")
-  }
+    }
   oct_2015_mean_station_diff
   
   # nov 2015 == -3.6 sd 1.2
   {
     # remove Nov 1,2,3 from ERA5 to match the missing palmos/paws datasets n=27, not n=30
-    #    nov_2015 <- nov_2015[c(4:30),]
     nov_2015.palmos <- subset(daily.palmos, month=="11") 
     nov_2015.paws <- subset(daily.paws, month=="11")
     
@@ -1804,12 +1461,6 @@ maws_rh <- na.omit(maws_rh)
     round(nov_2015_mean_station_diff, 1) 
     nov_2015_sd_station_diff <- sd(nov_2015.paws$Rel.Humidity) - sd(nov_2015.palmos$Rel.Humidity) 
     round(nov_2015_sd_station_diff, 1) 
-    
-    plot(nov_2015.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Nov-2015"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    lines(nov_2015.paws$Rel.Humidity, col="blue")
-    lines(nov_2015.palmos$Rel.Humidity+nov_2015_mean_station_diff, col="red",lty=3)
-    
   }
   nov_2015_mean_station_diff
   
@@ -1826,11 +1477,6 @@ maws_rh <- na.omit(maws_rh)
     round(dec_2015_mean_station_diff, 1) 
     dec_2015_sd_station_diff <- sd(dec_2015.paws$Rel.Humidity) - sd(dec_2015.palmos$Rel.Humidity)
     round(dec_2015_sd_station_diff, 1) 
-    
-    plot(dec_2015.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Dec-2015, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    lines(dec_2015.paws$Rel.Humidity, col="blue")
-    lines(dec_2015.palmos$Rel.Humidity + dec_2015_mean_station_diff, col="red",lty=3)
   }
   dec_2015_mean_station_diff
   
@@ -1847,12 +1493,6 @@ maws_rh <- na.omit(maws_rh)
     round(jan_2016_mean_station_diff, 1) 
     jan_2016_sd_station_diff <- sd(jan_2016.paws$Rel.Humidity) - sd(jan_2016.palmos$Rel.Humidity)
     round(jan_2016_sd_station_diff, 1) 
-    
-    plot(jan_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Jan-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative Humidity (%)")
-    lines(jan_2016.paws$Rel.Humidity, col="blue")
-    lines(jan_2016.palmos$Rel.Humidity + jan_2016_mean_station_diff, col="red",lty=3)
-    
   }
   jan_2016_mean_station_diff
   
@@ -1869,13 +1509,7 @@ maws_rh <- na.omit(maws_rh)
     round(feb_2016_mean_station_diff, 1) 
     feb_2016_sd_station_diff <- sd(feb_2016.paws$Rel.Humidity) - sd(feb_2016.palmos$Rel.Humidity)
     round(feb_2016_sd_station_diff, 1) 
-    
-    plot(feb_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Feb-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Temperature (ºC)")
-    lines(feb_2016.paws$Rel.Humidity, col="blue")
-    lines(feb_2016.palmos$Rel.Humidity + feb_2016_mean_station_diff, col="red",lty=3)
-    
-  }
+    }
   feb_2016_mean_station_diff
   
   # Mar 2016 == -5.9 sd 0.7
@@ -1891,12 +1525,7 @@ maws_rh <- na.omit(maws_rh)
     round(mar_2016_mean_station_diff, 1) 
     mar_2016_sd_station_diff <- sd(mar_2016.paws$Rel.Humidity) - sd(mar_2016.palmos$Rel.Humidity)
     round(mar_2016_sd_station_diff, 1) 
-    
-    plot(mar_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Mar-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    lines(mar_2016.paws$Rel.Humidity, col="blue")
-    lines(mar_2016.palmos$Rel.Humidity + mar_2016_mean_station_diff, col="red", lty=3)
-  }
+   }
   mar_2016_mean_station_diff
   
   # Apr 2016 == -6.5 sd 0.0
@@ -1912,11 +1541,6 @@ maws_rh <- na.omit(maws_rh)
     round(apr_2016_mean_station_diff, 1) 
     apr_2016_sd_station_diff <- sd(apr_2016.paws$Rel.Humidity) - sd(apr_2016.palmos$Rel.Humidity)
     round(apr_2016_sd_station_diff, 1) 
-    
-    plot(apr_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Apr-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Temperature (ºC)")
-    lines(apr_2016.paws$Rel.Humidity , col="blue")
-    lines(apr_2016.palmos$Rel.Humidity + apr_2016_mean_station_diff, col="red",lty=3)
   }
   apr_2016_mean_station_diff
   
@@ -1933,13 +1557,7 @@ maws_rh <- na.omit(maws_rh)
     round(may_2016_mean_station_diff, 1) 
     may_2016_sd_station_diff <- sd(may_2016.paws$Rel.Humidity) - sd(may_2016.palmos$Rel.Humidity)
     round(may_2016_sd_station_diff, 1) 
-    
-    plot(may_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("May-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    lines(may_2016.paws$Rel.Humidity, col="blue")
-    lines(may_2016.palmos$Rel.Humidity + may_2016_mean_station_diff, col="red",lty=3)
-    
-  }
+   }
   may_2016_mean_station_diff
   
   # Jun 2016 == -7.4 sd 1.6
@@ -1955,13 +1573,7 @@ maws_rh <- na.omit(maws_rh)
     round(jun_2016_mean_station_diff, 1) 
     jun_2016_sd_station_diff <- sd(jun_2016.paws$Rel.Humidity) - sd(jun_2016.palmos$Rel.Humidity)
     round(jun_2016_sd_station_diff, 1) 
-    
-    plot(jun_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Jun-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    lines(jun_2016.paws$Rel.Humidity, col="blue")
-    lines(jun_2016.palmos$Rel.Humidity + jun_2016_mean_station_diff, col="red",lty=3)
-    
-  }
+    }
   jun_2016_mean_station_diff
   
   # Jul 2016 == -6.8 sd 1.0
@@ -1977,12 +1589,7 @@ maws_rh <- na.omit(maws_rh)
     round(jul_2016_mean_station_diff, 1) 
     jul_2016_sd_station_diff <- sd(jul_2016.paws$Rel.Humidity) - sd(jul_2016.palmos$Rel.Humidity)
     round(jul_2016_sd_station_diff, 1) 
-    
-    plot(jul_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Jul-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Temperature (ºC)")
-    lines(jul_2016.paws$Rel.Humidity, col="blue")
-    lines(jul_2016.palmos$Rel.Humidity + jul_2016_mean_station_diff, col="red",lty=3)
-  }
+   }
   jul_2016_mean_station_diff
   
   # Aug 2016 == -10.2 sd 1.0
@@ -1998,13 +1605,6 @@ maws_rh <- na.omit(maws_rh)
     round(aug_2016_mean_station_diff, 1) # PAWS is colder (higher up on a hill) PALMOS is warmer (closer to ocean)
     aug_2016_sd_station_diff <- sd(aug_2016.paws$Rel.Humidity) - sd(aug_2016.palmos$Rel.Humidity)
     round(aug_2016_sd_station_diff, 1) # PAWS is colder (higher up on a hill) PALMOS is warmer (closer to ocean)
-    
-    plot(aug_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Aug-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    lines(aug_2016.paws$Rel.Humidity, col="blue")
-    lines(aug_2016.palmos$Rel.Humidity + aug_2016_mean_station_diff, col="red",lty=3)    
-    
-    
   }
   aug_2016_mean_station_diff
   
@@ -2044,7 +1644,6 @@ maws_temp$adj_temp  <- maws_temp$adj_temp * 0.987
 # Use which() to get the row numbers where the logical vector is TRUE
 logical_vector <- maws$dates=="2010-10-12"
 row_numbers <- which(logical_vector)
-tail(row_numbers)
 
 # calc dailys from 1-min adjusted temperature and rel humidity MAWS #####
 # hourly
@@ -2092,20 +1691,10 @@ pal$adj_wd <- ifelse(pal$adj_wd < 0, pal$adj_wd + 360, pal$adj_wd)
 pal$adj_t  <- pal$Air.Temperature..C. * 0.987
 pal$adj_t[pal$adj_t > 12] <- NA
 
-#pal$adj_pres <- pal$Air.Pressure..mbar. - 2.954838 # this is incorrect to compare surface pressure
 pal$Air.Pressure..mbar. <- pal$Air.Pressure..mbar. + (6 / (29.27 * Tv))
-#pal$Air.Pressure..mbar. <- pal$Air.Pressure..mbar. + (8 / 9.2) # converts surf pressure to mslp based on elevation
-#pal$adj_pres <- pal$Air.Pressure..mbar. * 0.999 # lsf slope as CF for pressure
-pal$adj_pres <- pal$Air.Pressure..mbar. + -2.938757 # goal is to add monthly mean difference to palmos to adjust it to be similar to PAWS
-
-
+pal$adj_pres <- pal$Air.Pressure..mbar. + -2.938757 
 pal$adj_pres[pal$adj_pres > 2000] <- NA # remove erroneous pressure values
 pal$adj_pres[pal$adj_pres < 800] <- NA
-#see <- subset(pal, adj_pres < 800)
-
-#pal$adj_rh <- pal$Relative.Humidity.... + -5.811006
-#pal$adj_rh <- pal$Relative.Humidity.... * 0.855
-# applied monthly mean rh correction method (mean difference of daily mean rh for each month 2015+2019)
 
 ### panel plot for relative humidity 12-mo overlap
 {
@@ -2120,20 +1709,12 @@ pal$adj_pres[pal$adj_pres < 800] <- NA
     
     cor.test(sep_2015.palmos$Rel.Humidity, sep_2015.paws$Rel.Humidity) #palmos vs paws
     t.test(sep_2015.palmos$Rel.Humidity, sep_2015.paws$Rel.Humidity, paired=TRUE) # palmos and paws are not different
-    #plot(sep_2015.palmos$Rel.Humidity, sep_2015.paws$Rel.Humidity)
     
     # calculate mean differences between palmos, and paws for each month in overlapping dataset
     sep_2015_mean_station_diff <- mean(sep_2015.paws$Rel.Humidity) - mean(sep_2015.palmos$Rel.Humidity)
     round(sep_2015_mean_station_diff, 1) # Palmos is more humid than PAWS (closer to ocean)
     sep_2015_sd_station_diff <- sd(sep_2015.paws$Rel.Humidity) - sd(sep_2015.palmos$Rel.Humidity)
     round(sep_2015_sd_station_diff, 1) 
-    
-    plot(sep_2015.palmos$Rel.Humidity, type="l", main="Sep-2015,2019",
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    # adjusted sep 2015
-    lines(sep_2015.palmos$Rel.Humidity + sep_2015_mean_station_diff, col="red",lty=3,lwd=2)
-    lines(sep_2015.paws$Rel.Humidity, col="blue")
-    legend("bottomright", legend=c("PalMOS","adj. PalMOS","PAWS"), col=c("red","red","blue"), lty=c(1,3,1), bty="n",cex=0.8)
   }
   sep_2015_mean_station_diff
   
@@ -2151,11 +1732,6 @@ pal$adj_pres[pal$adj_pres < 800] <- NA
     round(oct_2015_mean_station_diff, 1) 
     oct_2015_sd_station_diff <- sd(oct_2015.paws$Rel.Humidity) - sd(oct_2015.palmos$Rel.Humidity)
     round(oct_2015_sd_station_diff, 1) 
-    
-    plot(oct_2015.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Oct-2015,2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    lines(oct_2015.palmos$Rel.Humidity+oct_2015_mean_station_diff, col="red",lty=3)
-    lines(oct_2015.paws$Rel.Humidity, col="blue")
   }
   oct_2015_mean_station_diff
   
@@ -2174,12 +1750,6 @@ pal$adj_pres[pal$adj_pres < 800] <- NA
     round(nov_2015_mean_station_diff, 1) 
     nov_2015_sd_station_diff <- sd(nov_2015.paws$Rel.Humidity) - sd(nov_2015.palmos$Rel.Humidity) 
     round(nov_2015_sd_station_diff, 1) 
-    
-    plot(nov_2015.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Nov-2015"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    lines(nov_2015.paws$Rel.Humidity, col="blue")
-    lines(nov_2015.palmos$Rel.Humidity+nov_2015_mean_station_diff, col="red",lty=3)
-    
   }
   nov_2015_mean_station_diff
   
@@ -2196,11 +1766,6 @@ pal$adj_pres[pal$adj_pres < 800] <- NA
     round(dec_2015_mean_station_diff, 1) 
     dec_2015_sd_station_diff <- sd(dec_2015.paws$Rel.Humidity) - sd(dec_2015.palmos$Rel.Humidity)
     round(dec_2015_sd_station_diff, 1) 
-    
-    plot(dec_2015.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Dec-2015, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    lines(dec_2015.paws$Rel.Humidity, col="blue")
-    lines(dec_2015.palmos$Rel.Humidity + dec_2015_mean_station_diff, col="red",lty=3)
   }
   dec_2015_mean_station_diff
   
@@ -2216,13 +1781,7 @@ pal$adj_pres[pal$adj_pres < 800] <- NA
     jan_2016_mean_station_diff <- mean(jan_2016.paws$Rel.Humidity) - mean(jan_2016.palmos$Rel.Humidity)
     round(jan_2016_mean_station_diff, 1) 
     jan_2016_sd_station_diff <- sd(jan_2016.paws$Rel.Humidity) - sd(jan_2016.palmos$Rel.Humidity)
-    round(jan_2016_sd_station_diff, 1) 
-    
-    plot(jan_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Jan-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative Humidity (%)")
-    lines(jan_2016.paws$Rel.Humidity, col="blue")
-    lines(jan_2016.palmos$Rel.Humidity + jan_2016_mean_station_diff, col="red",lty=3)
-    
+    round(jan_2016_sd_station_diff, 1)
   }
   jan_2016_mean_station_diff
   
@@ -2239,12 +1798,6 @@ pal$adj_pres[pal$adj_pres < 800] <- NA
     round(feb_2016_mean_station_diff, 1) 
     feb_2016_sd_station_diff <- sd(feb_2016.paws$Rel.Humidity) - sd(feb_2016.palmos$Rel.Humidity)
     round(feb_2016_sd_station_diff, 1) 
-    
-    plot(feb_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Feb-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Temperature (ºC)")
-    lines(feb_2016.paws$Rel.Humidity, col="blue")
-    lines(feb_2016.palmos$Rel.Humidity + feb_2016_mean_station_diff, col="red",lty=3)
-    
   }
   feb_2016_mean_station_diff
   
@@ -2261,12 +1814,7 @@ pal$adj_pres[pal$adj_pres < 800] <- NA
     round(mar_2016_mean_station_diff, 1) 
     mar_2016_sd_station_diff <- sd(mar_2016.paws$Rel.Humidity) - sd(mar_2016.palmos$Rel.Humidity)
     round(mar_2016_sd_station_diff, 1) 
-    
-    plot(mar_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Mar-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    lines(mar_2016.paws$Rel.Humidity, col="blue")
-    lines(mar_2016.palmos$Rel.Humidity + mar_2016_mean_station_diff, col="red", lty=3)
-  }
+   }
   mar_2016_mean_station_diff
   
   # Apr 2016 == -6.5 sd 0.0
@@ -2282,11 +1830,6 @@ pal$adj_pres[pal$adj_pres < 800] <- NA
     round(apr_2016_mean_station_diff, 1) 
     apr_2016_sd_station_diff <- sd(apr_2016.paws$Rel.Humidity) - sd(apr_2016.palmos$Rel.Humidity)
     round(apr_2016_sd_station_diff, 1) 
-    
-    plot(apr_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Apr-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Temperature (ºC)")
-    lines(apr_2016.paws$Rel.Humidity , col="blue")
-    lines(apr_2016.palmos$Rel.Humidity + apr_2016_mean_station_diff, col="red",lty=3)
   }
   apr_2016_mean_station_diff
   
@@ -2303,13 +1846,7 @@ pal$adj_pres[pal$adj_pres < 800] <- NA
     round(may_2016_mean_station_diff, 1) 
     may_2016_sd_station_diff <- sd(may_2016.paws$Rel.Humidity) - sd(may_2016.palmos$Rel.Humidity)
     round(may_2016_sd_station_diff, 1) 
-    
-    plot(may_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("May-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    lines(may_2016.paws$Rel.Humidity, col="blue")
-    lines(may_2016.palmos$Rel.Humidity + may_2016_mean_station_diff, col="red",lty=3)
-    
-  }
+   }
   may_2016_mean_station_diff
   
   # Jun 2016 == -7.4 sd 1.6
@@ -2325,12 +1862,6 @@ pal$adj_pres[pal$adj_pres < 800] <- NA
     round(jun_2016_mean_station_diff, 1) 
     jun_2016_sd_station_diff <- sd(jun_2016.paws$Rel.Humidity) - sd(jun_2016.palmos$Rel.Humidity)
     round(jun_2016_sd_station_diff, 1) 
-    
-    plot(jun_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Jun-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    lines(jun_2016.paws$Rel.Humidity, col="blue")
-    lines(jun_2016.palmos$Rel.Humidity + jun_2016_mean_station_diff, col="red",lty=3)
-    
   }
   jun_2016_mean_station_diff
   
@@ -2347,11 +1878,6 @@ pal$adj_pres[pal$adj_pres < 800] <- NA
     round(jul_2016_mean_station_diff, 1) 
     jul_2016_sd_station_diff <- sd(jul_2016.paws$Rel.Humidity) - sd(jul_2016.palmos$Rel.Humidity)
     round(jul_2016_sd_station_diff, 1) 
-    
-    plot(jul_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Jul-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Temperature (ºC)")
-    lines(jul_2016.paws$Rel.Humidity, col="blue")
-    lines(jul_2016.palmos$Rel.Humidity + jul_2016_mean_station_diff, col="red",lty=3)
   }
   jul_2016_mean_station_diff
   
@@ -2368,13 +1894,6 @@ pal$adj_pres[pal$adj_pres < 800] <- NA
     round(aug_2016_mean_station_diff, 1) # PAWS is colder (higher up on a hill) PALMOS is warmer (closer to ocean)
     aug_2016_sd_station_diff <- sd(aug_2016.paws$Rel.Humidity) - sd(aug_2016.palmos$Rel.Humidity)
     round(aug_2016_sd_station_diff, 1) # PAWS is colder (higher up on a hill) PALMOS is warmer (closer to ocean)
-    
-    plot(aug_2016.palmos$Rel.Humidity, type="l", main=expression(bold(paste("Aug-2016, 2019"))),
-         ylim=c(50,100), col="red", xlab="", ylab="Relative humidity (%)")
-    lines(aug_2016.paws$Rel.Humidity, col="blue")
-    lines(aug_2016.palmos$Rel.Humidity + aug_2016_mean_station_diff, col="red",lty=3)    
-    
-    
   }
   aug_2016_mean_station_diff
   
@@ -2559,8 +2078,6 @@ pal_adj <- pal_subset_to_manual %>%
 # forces the dataset to end 2015-09-30,      will add paws 01 October 2015
 pal_adj <- pal_adj[-c(5017:5559),]
 tail(pal_adj)
-
-head(pal_adj)
 # ########################################################### #
 # ########################################################### #
 # this is used to compare with manual observations
@@ -2569,6 +2086,7 @@ daily.pal_overlap <-  pal_adj[c(2:657),] # should end 2003-09-30
 tail(daily.pal_overlap)
 
 # ########################################################### #
+rm()
 # ########################################################### #
 # ########################################################### #
 
@@ -2599,8 +2117,6 @@ man$v <- -man$Wind.Average..knots. * cos(man$Wind.Peak.Direction*pi/180)
 man$v <- man$v * 0.514444
 man$u <- -man$Wind.Average..knots. * sin(man$Wind.Peak.Direction*pi/180)
 man$u <- man$u * 0.514444
-
-# trace <- subset(man, Precipitation.Melted..mm. %in% c("T"))
 
 # Gap filling manual Tmean #####
 ########################################################## #
@@ -2654,9 +2170,10 @@ man$u <- man$u * 0.514444
 ### Table S1 results #####
 cor.test(Tdiff$Temperature.Average..C., Tdiff$hilow_T,method="spearman")
 
-### Fig S3a 1:1 Tmin/max Tmean comparison #####
+### Fig S3a 1:1 Tmin/max and Pmin/Pmax comparison #####
 par(mfrow=c(2,3))
 par(mar=c(4,6,0.5,0.5)) 
+{
 {
   plot(Tdiff$Temperature.Average..C., Tdiff$hilow_T,
        xlim=c(-21,7), ylim=c(-21,7),
@@ -2704,22 +2221,6 @@ legend(1,0.65, legend=c(expression(bold("calculated mean minus archived mean\nmo
 addfiglab("(c)")  
 
 
-
-
-### Fig SX residuals Tdiff manual ####
-{
-  lsf <- lm(Tdiff$hilow_T ~ Tdiff$Temperature.Average..C.) # lm(y ~ x)
-  summary(lsf)
-  residuals <- residuals(lsf)
-  plot(fitted(lsf), residuals, cex.lab=1.5, cex.axis=1.5, cex=1.5,
-       xlab = expression(bold("Fitted reported air temperature (%)")), ylab = expression(bold("Residuals")))
-  abline(h = 0, col="red", lwd=2)
-}
-addfiglab("(c)")  
-
-
-
-
 # adjust manual Pressure obs   ##### 
 ### Pressure mean calculation difference #####
 #subset to 09/1996 to 08/2003
@@ -2757,7 +2258,6 @@ names(monthly_Pdiff)[1:7] <-c("month", "Pressure.Average..mbar.","sd_Pressure.Av
 cor.test(Pdiff$Pressure.Average..mbar., Pdiff$hilow_P,method="spearman")
 
 ### Fig S3a 1:1 Pmin/Pmax Pressure mean comparison #####
-#par(mfrow=c(2,3))
 par(mar=c(4,6,0.5,0.5)) 
 {
   plot(Pdiff$Pressure.Average..mbar., Pdiff$hilow_P,
@@ -2815,7 +2315,7 @@ addfiglab("(e)")
 }
 addfiglab("(f)")  
 
-
+}
 
 
 ## Trim down to overlapping period & format #####
@@ -2841,14 +2341,9 @@ daily.man_overlap <- man_overlap %>%
 daily.man_overlap <- daily.man_overlap[-c(57:65, 224,225,228,229),]
                   # missing bc of erroneous precip values
                   # 2002-02-18, 
-                  # daily.man_overlap <- daily.man_overlap[-c(72),]
-                  # # remove last row in daily.pal (different dataframe)
-                  # daily.pal_overlap <- daily.pal_overlap[-c(749),]
-
+  
 # Test to check the datasets align
 daily.pal_overlap$day - daily.man_overlap$day
-
-
 
 
 # Pressure #####
@@ -2971,7 +2466,6 @@ round(rmse,1)
 addfiglab("(c)")
 
 ### Fig 2d monthly temp manual—adj. PalMOS
-par(mar=c(4,6,0.5,0.5))
 { 
   mo_manual <- daily.man_overlap %>%
     group_by(month) %>%
@@ -3022,34 +2516,7 @@ addfiglab("(e)")
 
 
 
-### Fig SX residuals of manual-adjPalmos air Temperature overlap #####
-{
-  lsf <- lm(daily.pal_overlap$Air.Temp ~ daily.man_overlap$Temperature.Average..C.) # lm(y ~ x)
-  summary(lsf)
-  
-  residuals <- residuals(lsf)
-  #plot(daily.pal_overlap$Air.Temp, residuals, main = "Residual Plot", xlab = "Predictor Variable", ylab = "Residuals") 
-  plot(fitted(lsf), residuals, 
-       cex=1.5, cex.lab=1.5, cex.axis=1.5,
-       xlab = expression(bold("Fitted manual air temperature (ºC)")), ylab = expression(bold("Residuals")))
-  abline(h = 0, col="red", lwd=2) 
-}
-addfiglab("(b)")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#???# apply adjustment CF for Tmin/max and Pmin/Pmax from lsf #####
+# apply CF adjustment for Tmin/max and Pmin/Pmax from lsf #####
 
 man_adj$adj_P <- NA
 man_adj$adj_P <- man_adj$hilow_P - 0.06144204
@@ -3100,11 +2567,9 @@ man_adj2$comb_T <- c(man_adj2$hilow_T[c(1:2710)], man_adj2$Temperature.Average..
 # adjust 04-1989 to 11-2001 mean of hi-low temperature + combine with non-adjusted 
 # based on 2-year overlap analysis of adjustment factors
 man_adj2$man_adj2_P <- NA
-#man_adj2$man_adj2_P <- man_adj2$comb_P + -1.014483
-#man_adj2$man_adj2_P <- man_adj2$comb_P + 0.996
+
 man_adj2$comb_P <- man_adj2$comb_P + (8 / (29.27 * Tv)) # converts surf pressure to mslp based on elevation
 man_adj2$man_adj2_P <- man_adj2$comb_P + -0.9986525 # adjusts the pressure using the mean monthly difference correction factor
-#man_adj2$man_adj2_P <- man_adj2$comb_P * 0.995
 
 # the newly adjusted manual Pressure data series
 man_adj2$man_adj2_P <- round(man_adj2$man_adj2_P,1)
@@ -3112,7 +2577,6 @@ man_adj2$man_adj2_P
 
 ## apply CF manual Temperature #####
 # adjust 04-1989 to 11-2001 mean of hi-low temperature + combine with non-adjusted 
-# based on 2-year overlap analysis of adjustment factors
 man_adj2$man_adj2_T <- NA
 man_adj2$man_adj2_T <- man_adj2$comb_T * 0.993
 
@@ -3129,7 +2593,7 @@ man_adj2$man_adj2_T
  cor.test(daily.man_overlap$Wind.Average.m.s, daily.pal_overlap$WS_avg_2min, method="spearman")
  
 
-par(mfrow=c(2,2))
+par(mfrow=c(2,3))
 par(mar=c(4,6,0.5,0.5)) 
 
 ### Fig 4d wind speed manual-adj PalMOS 1:1 plot #####
@@ -3171,9 +2635,6 @@ addfiglab("(d)")
 }
 addfiglab("(e)")
 
-
-
-
 ### Fig 4e monthly wind speed manual-adj. PalMOS #####
 { 
   mo_manual <- daily.man_overlap %>%
@@ -3204,49 +2665,14 @@ addfiglab("(e)")
   legend("bottomleft", legend=c(expression(bold("manual")), expression(bold("adjusted PalMOS"))), bg="transparent", bty="n",
          pch=c(0,1), pt.cex = 1.5, pt.lwd=3, col=c(alpha("#ca0020",0.9), alpha("#0571b0",0.7)))
 }
-addfiglab("(d)")
-
-### Fig SX residuals of manual-adjPalmos air Temperature overlap #####
-{
-  lsf <- lm(daily.pal_overlap$WS_avg_2min ~ daily.man_overlap$Wind.Average.m.s) # lm(y ~ x)
-  summary(lsf)
-  
-  residuals <- residuals(lsf)
-  #plot(daily.pal_overlap$Air.Temp, residuals, main = "Residual Plot", xlab = "Predictor Variable", ylab = "Residuals") 
-  plot(fitted(lsf), residuals, 
-       cex=1.5, cex.lab=1.5, cex.axis=1.5,
-       xlab = expression(bold("Fitted manual wind speed (m/s)")), ylab = expression(bold("Residuals")))
-  abline(h = 0, col="red", lwd=2) 
-}
 addfiglab("(f)")
 
 
 
-
 ## apply wind speed CF  #####
-# based on 2-year overlap analysis of adjustment factors
-
 man_adj2$man_adj_ws <- NA
 man_adj2$man_adj_ws <- man_adj2$Wind.Average..knots._ms * 1.005
 
-
-### wind rose paws raw palmos comparison #####
-
-# library(openair)
-# head(paws_wind[1074840,])
-# tail(palmos_wind[4754000,])
-# 
-# tail(palmos[4241646:4643126,])
-# palmos_wind <- palmos_wind[4241646:4754106,] # 11 sep 2015 to 30 Sep 2017
-# paws_wind <-  paws_wind[1:1167116,]
-# 
-# windRose(palmos_wind, ws ="WS_avg_2min", wd="WD_avg_2min", 
-#          #ws2=paws$WS.Avg.2min, wd2 = paws$WD.Avg.2min,
-#          hemisphere="southern",paddle=F, breaks = c(0, 5, 10, 15, 20),
-#          main="2-min PalMOS: 11 Sep 2015 - 30 Sep 2017", max.freq = 20)
-# windRose(paws_wind, ws ="WS.Avg.2min", wd="WD.Avg.2min", 
-#          hemisphere="southern",paddle=F, breaks = c(0, 5, 10, 15, 20),
-#          main="1-min PAWS: 11 Sep 2015 - 30 Sep 2017", max.freq = 20)
 
 # Wind direction Analysis#####
 theme_set(theme_bw()) 
@@ -3626,18 +3052,6 @@ diff_ws
 mean(diff_ws)
 
 
-#####princax analysis of principal variance #####
-#### dataframes for matlab princax function #####
-# w <- cbind.data.frame(daily.pal_overlap$u, daily.pal_overlap$v)
-#   write.csv(w, "adj_palmos_w.csv")
-# 
-# w <- cbind.data.frame(daily.man_overlap$u, daily.man_overlap$v)
-#  write.csv(w, "manual_w.csv")
-
- 
-# the difference in the direction of principal variance = 14.1º
-# for adjusted PalMOS - manual direction of princ var
-
 #### apply wind direction CF #####
 # uses results from princax analysis in Matlab
 man_adj2$man_adj_wd <- NA
@@ -3696,9 +3110,7 @@ addfiglab("(c)")
     cor.test(sep_pal_overlap$precip.melted, sep_man_overlap$Precipitation.Melted..mm.) #palmos vs manual
           shapiro.test(sep_pal_overlap$precip.melted) 
     t.test(sep_pal_overlap$precip.melted, sep_man_overlap$Precipitation.Melted..mm., paired=TRUE) # palmos and paws are not different
-    plot(sep_pal_overlap$precip.melted, sep_man_overlap$Precipitation.Melted..mm.) #palmos vs paws
-    
-    sep_catch <- sum(sep_pal_overlap$precip.melted, na.rm=T) / 
+     sep_catch <- sum(sep_pal_overlap$precip.melted, na.rm=T) / 
                           sum(sep_man_overlap$Precipitation.Melted..mm., na.rm=TRUE)  
   }
     sep_catch
@@ -3712,8 +3124,6 @@ addfiglab("(c)")
     cor.test(oct_pal_overlap$precip.melted, oct_man_overlap$Precipitation.Melted..mm.) #palmos vs paws
     shapiro.test(oct_pal_overlap$precip.melted) # data are normally distributed p>0.05
     t.test(oct_pal_overlap$precip.melted, oct_man_overlap$Precipitation.Melted..mm., paired=TRUE) # palmos and paws are not different
-    plot(oct_pal_overlap$precip.melted, oct_man_overlap$Precipitation.Melted..mm.) #palmos vs paws
-    
     oct_catch <- sum(oct_pal_overlap$precip.melted, na.rm=T) / 
                               sum(oct_man_overlap$Precipitation.Melted..mm., na.rm=TRUE)    
   }
@@ -3729,8 +3139,6 @@ addfiglab("(c)")
     cor.test(nov_pal_overlap$precip.melted, nov_man_overlap$Precipitation.Melted..mm.) 
     shapiro.test(nov_pal_overlap$precip.melted) 
     t.test(nov_pal_overlap$precip.melted, nov_man_overlap$Precipitation.Melted..mm., paired=TRUE) 
-    plot(nov_pal_overlap$precip.melted, nov_man_overlap$Precipitation.Melted..mm.) 
-    
     nov_catch <- sum(nov_pal_overlap$precip.melted, na.rm=T) / 
                   sum(nov_man_overlap$Precipitation.Melted..mm., na.rm=TRUE)    
     
@@ -3747,8 +3155,6 @@ addfiglab("(c)")
     cor.test(dec_pal_overlap$precip.melted, dec_man_overlap$Precipitation.Melted..mm.) 
     shapiro.test(dec_pal_overlap$precip.melted) 
     t.test(dec_pal_overlap$precip.melted, dec_man_overlap$Precipitation.Melted..mm., paired=TRUE) 
-    plot(dec_pal_overlap$precip.melted, dec_man_overlap$Precipitation.Melted..mm.) 
-    
     dec_catch <- sum(dec_pal_overlap$precip.melted, na.rm=T) / 
                   sum(dec_man_overlap$Precipitation.Melted..mm., na.rm=TRUE)    
     
@@ -3765,8 +3171,6 @@ addfiglab("(c)")
     cor.test(jan_pal_overlap$precip.melted, jan_man_overlap$Precipitation.Melted..mm.) 
     shapiro.test(jan_pal_overlap$precip.melted) 
     t.test(jan_pal_overlap$precip.melted, jan_man_overlap$Precipitation.Melted..mm., paired=TRUE) 
-    plot(jan_pal_overlap$precip.melted, jan_man_overlap$Precipitation.Melted..mm.) 
-    
     jan_catch <- sum(jan_pal_overlap$precip.melted, na.rm=T) / 
                     sum(jan_man_overlap$Precipitation.Melted..mm., na.rm=TRUE)    
     
@@ -3783,8 +3187,6 @@ addfiglab("(c)")
     cor.test(feb_pal_overlap$precip.melted, feb_man_overlap$Precipitation.Melted..mm.) 
     shapiro.test(feb_pal_overlap$precip.melted) 
     t.test(feb_pal_overlap$precip.melted, feb_man_overlap$Precipitation.Melted..mm., paired=TRUE) 
-    plot(feb_pal_overlap$precip.melted, feb_man_overlap$Precipitation.Melted..mm.) 
-    
     feb_catch <- sum(feb_pal_overlap$precip.melted, na.rm=T) / 
                     sum(feb_man_overlap$Precipitation.Melted..mm., na.rm=TRUE)    
   }
@@ -3800,9 +3202,6 @@ addfiglab("(c)")
     cor.test(mar_pal_overlap$precip.melted, mar_man_overlap$Precipitation.Melted..mm.) 
     shapiro.test(mar_pal_overlap$precip.melted) 
     t.test(mar_pal_overlap$precip.melted, mar_man_overlap$Precipitation.Melted..mm., paired=TRUE) 
-    plot(mar_pal_overlap$precip.melted, mar_man_overlap$Precipitation.Melted..mm.) 
-    plot(mar_man_overlap$Precipitation.Melted..mm., type = "l") 
-    lines(mar_pal_overlap$precip.melted, type = "l", col="blue") 
     
     mar_catch <- sum(mar_pal_overlap$precip.melted, na.rm=T) / 
                     sum(mar_man_overlap$Precipitation.Melted..mm., na.rm=TRUE)    
@@ -3819,8 +3218,6 @@ addfiglab("(c)")
     cor.test(apr_pal_overlap$precip.melted, apr_man_overlap$Precipitation.Melted..mm.) 
     shapiro.test(apr_pal_overlap$precip.melted) 
     t.test(apr_pal_overlap$precip.melted, apr_man_overlap$Precipitation.Melted..mm.) 
-    plot(apr_pal_overlap$precip.melted, apr_man_overlap$Precipitation.Melted..mm.) 
-    
     apr_catch <- sum(apr_pal_overlap$precip.melted, na.rm=T) / 
                     sum(apr_man_overlap$Precipitation.Melted..mm., na.rm=TRUE)    
   }
@@ -3836,8 +3233,6 @@ addfiglab("(c)")
     cor.test(may_pal_overlap$precip.melted, may_man_overlap$Precipitation.Melted..mm.) 
     shapiro.test(may_pal_overlap$precip.melted) 
     t.test(may_pal_overlap$precip.melted, may_man_overlap$Precipitation.Melted..mm., paired=TRUE) 
-    plot(may_pal_overlap$precip.melted, may_man_overlap$Precipitation.Melted..mm.) 
-    
     may_catch <- sum(may_pal_overlap$precip.melted, na.rm=T) / 
                     sum(may_man_overlap$Precipitation.Melted..mm., na.rm=TRUE)    
   }
@@ -3853,8 +3248,6 @@ addfiglab("(c)")
     cor.test(jun_pal_overlap$precip.melted, jun_man_overlap$Precipitation.Melted..mm.) 
     shapiro.test(jun_pal_overlap$precip.melted) 
     t.test(jun_pal_overlap$precip.melted, jun_man_overlap$Precipitation.Melted..mm., paired=TRUE) 
-    plot(jun_pal_overlap$precip.melted, jun_man_overlap$Precipitation.Melted..mm.) 
-    
     jun_catch <- sum(jun_pal_overlap$precip.melted, na.rm=T) / 
                     sum(jun_man_overlap$Precipitation.Melted..mm., na.rm=TRUE)    
   }
@@ -3870,10 +3263,7 @@ addfiglab("(c)")
     cor.test(jul_pal_overlap$precip.melted, jul_man_overlap$Precipitation.Melted..mm.) 
     shapiro.test(jul_pal_overlap$precip.melted) 
     t.test(jul_pal_overlap$precip.melted, jul_man_overlap$Precipitation.Melted..mm., paired=TRUE) 
-    plot(jul_pal_overlap$precip.melted, jul_man_overlap$Precipitation.Melted..mm.) 
-    plot(jul_man_overlap$Precipitation.Melted..mm., type="l") 
-    lines(jul_pal_overlap$precip.melted/4,col="blue") 
-    
+ 
     jul_catch <- sum(jul_pal_overlap$precip.melted, na.rm=T) / 
                       sum(jul_man_overlap$Precipitation.Melted..mm., na.rm=TRUE)    
   }
@@ -3889,8 +3279,6 @@ addfiglab("(c)")
     cor.test(aug_pal_overlap$precip.melted, aug_man_overlap$Precipitation.Melted..mm.) 
     shapiro.test(aug_pal_overlap$precip.melted) 
     t.test(aug_pal_overlap$precip.melted, aug_man_overlap$Precipitation.Melted..mm., paired=TRUE) 
-    plot(aug_pal_overlap$precip.melted, aug_man_overlap$Precipitation.Melted..mm.) 
-    
     aug_catch <- sum(aug_pal_overlap$precip.melted, na.rm=T) / 
                         sum(aug_man_overlap$Precipitation.Melted..mm., na.rm=TRUE)    
   }
@@ -3917,7 +3305,6 @@ addfiglab("(c)")
 
 plot(twoyr.catch.ratios$month_ann_catch_ratio_pal_vs_man,
        cex.lab=1.5,cex=2,pch=16, cex.axis=1.5, col="transparent",
-       #main="Dec-2001 to Nov-2003",
        ylim=c(0,2), xlab=expression(bold("month")), 
        ylab=expression(bold("precipitation catch ratio\n(adjusted PalMOS:manual)")))
   abline(h=ann_catch_ratio_pal_vs_man,col="darkgrey",lty=3,lwd=4)
@@ -3943,7 +3330,6 @@ man_adj2$Precipitation.Melted..mm. <- as.numeric(man_adj2$Precipitation.Melted..
 man_adj2$adj_pm <- man_adj2$Precipitation.Melted..mm. * ann_catch_ratio_pal_vs_man # aka == 1.1
 man_adj2$adj_pm
 
-#plot(man_adj2$dates, man_adj2$adj_pm, type="l")
 
 # GRAND COMBINATION ##### 
 ## PalMOS AWS dataset #####
@@ -3966,12 +3352,6 @@ names(final_pal_adj)[1:11] <-c("date", "year", "month", "day",
                                    "U_WD_avg_2min", "V_WD_avg_2min", "rel_humidity", "Pressure")
 
 
-# head(final_pal_adj) # 12-2001 to
-# tail(final_pal_adj) # 08-2016
-# head(final_man_adj) # 04-1989 to
-# tail(final_man_adj) # 11-2001
-# head(final_paws) # 04-1989 to # should start 2016-09-01
-# tail(final_paws) # 04-2024
 ## manual observations dataset #####
 man_adj2$empty_rh <- NA
 final_man_adj <-  cbind.data.frame(man_adj2$dates, man_adj2$year, man_adj2$month, man_adj2$day,
@@ -3981,29 +3361,11 @@ names(final_man_adj)[1:11] <-c("date", "year", "month", "day",
                                "temperature", "precip_melted", "WS_avg_2min",
                                "U_WD_avg_2min", "V_WD_avg_2min", "rel_humidity","Pressure")
 
-## PAWS dataset #####
-# setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate/PAWS relative humidity 2016-present")
-# paws <- read.csv("PAWS daily 2015-2024.csv", header=TRUE)
-# head(paws,20) # begins 2015-10-01
-# colnames(paws) # ends 2024-11-30
-# 
-# final_paws <- cbind.data.frame(paws$date, paws$year, paws$month, paws$day,
-#                                paws$Air.temp, paws$precip.melted, paws$WS.Avg.2min,
-#                                paws$u_wind, paws$v_wind, paws$Rel.Humidity)
-# names(final_paws)[1:10] <-c("date", "year", "month", "day", 
-#                                "temperature", "precip_melted", "WS_avg_2min",
-#                                "U_WD_avg_2min", "V_WD_avg_2min", "rel_humidity")
-# 
 
 # set up paws dataset using 1min observations
 {
- #setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate")
 setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate/PAWS relative humidity 2016-present")
 paws <- read.csv("PAWS_2min_Oct2015_Sep2024.csv", header=TRUE)
-
-#paws <- subset(paws, year== "2019")
-head(paws,3)
-tail(paws)
 
 paws$dates <- as.POSIXlt(paws$dates, format = "%Y-%m-%d %H:%M:%S", tz="UTC")
 
@@ -4038,8 +3400,6 @@ paws$u <- -paws$WS.Avg.2min * sin(paws$WD.Avg.2min*pi/180)
 # convert PAWS surface pressure to mean sea level pressure
 paws$Air.Pressure <- paws$Air.Pressure + (40 / (29.27 * Tv))
 
-# calc mean rel hum
-
 # daily
 paws_daily <- paws %>%
   group_by(year,month,day) %>%
@@ -4051,9 +3411,6 @@ paws_daily <- paws %>%
             precip.melted = sum(Rainfall, na.rm=TRUE),
             Air.Pressure = mean(Air.Pressure, na.rm=TRUE)) %>%
   mutate(date = make_date(year, month, day))
-
-
-
 
 # hourly
 # paws_hourly <- paws %>%
@@ -4075,53 +3432,9 @@ paws_daily <- paws %>%
 # names(final_paws)[1:12] <-c("date", "year", "month", "day", "hour", 
 #                             "temperature", "precip_melted", "WS_avg_2min",
 #                             "U_WD_avg_2min", "V_WD_avg_2min", "rel_humidity","Pressure")
-# 
-
-
-##### help rh old stuff #####
-{
-# add paws data april 01 2017 onward for rel humiidty and wind direction (u and v wind components)
-# setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate")
-# paws_rh <- read.csv("paws_rel_hum.csv",header=T)
-# paws_rh <- paws_rh[c(1:3121),] # trim oct 2015 to 30-04-2024
-# 
-# 
-# man$fake_rh <- NA
-# 
-# final_paws <-  cbind.data.frame(man$dates, man$year, man$month, man$day,
-#                                 man$Temperature.Average..C.,  man$Precipitation.Melted..mm.,
-#                                 man$Wind.Average..knots., man$u, man$v, man$fake_rh)
-# names(final_paws)[1:10] <-c("date", "year", "month", "day", 
-#                                "temperature", "precip_melted", "WS_avg_2min",
-#                                "U_WD_avg_2min", "V_WD_avg_2min", "rel_humidity")
-# final_paws <- final_paws[c(9649:12780),] # trim to [oct-01-2015 to apr-1-2024]
-# final_paws$precip_melted <- as.numeric(final_paws$precip_melted)
-# final_paws$WS_avg_2min <- final_paws$WS_avg_2min * 0.514444
-# 
-
-
-# # combine the rh with final_paws, by merging date column
-# paws_rh$date <- as.Date(paws_rh$date)
-# final_paws_rh <- merge(x = final_paws, y = paws_rh, #by="date")
-#       by.x = "date", by.y = "date")
-# colnames(final_paws_rh)
-# 
-# # clean up u and v wind in paws_rh  to match the other dataset col names
-# final_paws_rh$U_WD_avg_2min <- final_paws_rh$u_wind
-# final_paws_rh$V_WD_avg_2min <- final_paws_rh$v_wind
-# 
-# final_paws_rh <- final_paws_rh[,-c(10:14,16,17)]
-# names(final_paws_rh)[1:10] <-c("date", "year", "month", "day", 
-#                             "temperature", "precip_melted", "WS_avg_2min",
-#                             "U_WD_avg_2min", "V_WD_avg_2min", "rel_humidity")
 }
 
-}
-
-# trim oct 2015 to 30-04-2024
-paws_daily[3119,]
-head(paws_daily)
-# daily final paws
+# daily final paws # trim oct 2015 to 30-04-2024
 final_paws <- paws_daily[c(1:3119),c(11,1,2,3,4,9, 5,6,7,8,10)]
 names(final_paws)[1:11] <-c("date", "year", "month", "day", 
                                "temperature", "precip_melted", "WS_avg_2min",
@@ -4135,142 +3448,10 @@ names(final_paws)[1:11] <-c("date", "year", "month", "day",
 # hourly
 # final_adj_Palmer <- rbind(final_pal_adj, final_paws)
 
-# daily
-# combine manual, palmos, paws
+# daily, combine manual, palmos, paws
 final_adj_Palmer <- rbind(final_man_adj, final_pal_adj, final_paws)
 
-                                  # checks for missing stuff amrdc
-                                  {
-                                  # 01-APR-1989 to 30-NOV-2001        # 01-DEC-2001 to 30-SEP-2015       # 01-OCT-2015 to 30-APR-2024
-                                  head(final_man_adj)
-                                  tail(final_man_adj)
                                   
-                                  head(final_pal_adj)
-                                  tail(final_pal_adj)
-                                  
-                                  head(final_paws)
-                                  tail(final_paws)
-                                  
-                                  # check amrdc raw data for the missing 2010 data; result= all set at 100% rh for 29 days
-                                  # these file came from here: 
-                                  # https://amrdcdata.ssec.wisc.edu/dataset/palmer-station-automated-weather-data-system-observational-data/resource/312404fc-3421-4fc6-af28-4ad2b70ab6d9
-                                  {
-                                  # setwd("/Users/dulcineagroff/Downloads/2010/September")
-                                  # sep08 <- read.table("AR100908.100",sep="", skip = 2)
-                                  # sep09 <- read.table("AR100909.100",sep="", skip = 2)
-                                  # sep10 <- read.table("AR100910.100",sep="", skip = 2)
-                                  # sep11 <- read.table("AR100911.100",sep="", skip = 2)
-                                  # sep12 <- read.table("AR100912.100",sep="", skip = 2)
-                                  # sep13 <- read.table("AR100913.100",sep="", skip = 2)
-                                  # sep14 <- read.table("AR100914.100",sep="", skip = 2)
-                                  # sep15 <- read.table("AR100915.100",sep="", skip = 2)
-                                  # sep16 <- read.table("AR100916.100",sep="", skip = 2)
-                                  # sep17 <- read.table("AR100917.100",sep="", skip = 2)
-                                  # sep18 <- read.table("AR100918.100",sep="", skip = 2)
-                                  # sep19 <- read.table("AR100919.100",sep="", skip = 2)
-                                  # sep20 <- read.table("AR100920.100",sep="", skip = 2)
-                                  # sep21 <- read.table("AR100921.100",sep="", skip = 2)
-                                  # sep22 <- read.table("AR100922.100",sep="", skip = 2)
-                                  # sep23 <- read.table("AR100923.100",sep="", skip = 2)
-                                  # sep24 <- read.table("AR100924.100",sep="", skip = 2)
-                                  # sep25 <- read.table("AR100925.100",sep="", skip = 2)
-                                  # sep26 <- read.table("AR100926.100",sep="", skip = 2)
-                                  # sep27 <- read.table("AR100927.100",sep="", skip = 2)
-                                  # sep28 <- read.table("AR100928.100",sep="", skip = 2)
-                                  # sep29 <- read.table("AR100929.100",sep="", skip = 2)
-                                  # sep30 <- read.table("AR100930.100",sep="", skip = 2)
-                                  # 
-                                  # setwd("/Users/dulcineagroff/Downloads/2010/October")
-                                  # oct01 <- read.table("AR101001.100",sep="", skip = 2)
-                                  # oct02 <- read.table("AR101002.100",sep="", skip = 2)
-                                  # oct03 <- read.table("AR101003.100",sep="", skip = 2)
-                                  # oct04 <- read.table("AR101004.100",sep="", skip = 2)
-                                  # oct05 <- read.table("AR101005.100",sep="", skip = 2)
-                                  # oct06 <- read.table("AR101006.100",sep="", skip = 2)
-                                  # oct07 <- read.table("AR101007.100",sep="", skip = 2)
-                                  # 
-                                  # 
-                                  # missing.rel.hum <- rbind(sep08, sep09, sep10, sep11, sep12, sep13, sep14, sep15, sep16, sep17, sep18, sep19,
-                                  #       sep20, sep21, sep22, sep23, sep24, sep25, sep26, sep27, sep28, sep29, sep30,
-                                  #       oct01, oct02, oct03, oct04, oct05, oct06, oct07)
-                                  # plot(missing.rel.hum$V14)
-                                  
-                                  
-                                  # september 9, 2010 through october 6, 2010
-                                  
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2010], final_adj_Palmer$precip_melted[final_adj_Palmer$year==2010], 
-                                  #      type="l", xlab="", ylab="precipitation (mm)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2010], final_adj_Palmer$temperature[final_adj_Palmer$year==2010], 
-                                  #      type="b", xlab="", ylab="temperature (ºC)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2010], final_adj_Palmer$WS_avg_2min[final_adj_Palmer$year==2010], 
-                                  #      type="l", xlab="", ylab="wind speed (m/s)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2010], final_adj_Palmer$U_WD_avg_2min[final_adj_Palmer$year==2010], 
-                                  #      type="l", xlab="", ylab="u wind (m/s)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2010], final_adj_Palmer$V_WD_avg_2min[final_adj_Palmer$year==2010], 
-                                  #      type="l", xlab="", ylab="v wind (m/w)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2010], final_adj_Palmer$rel_humidity[final_adj_Palmer$year==2010], 
-                                  #      type="l", xlab="", ylab="relative humidity", col="hotpink")
-                                  # 
-                                  # # 2009 to 2006 
-                                  # {
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2009], final_adj_Palmer$precip_melted[final_adj_Palmer$year==2009], 
-                                  #      type="l", xlab="", ylab="precipitation (mm)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2009], final_adj_Palmer$temperature[final_adj_Palmer$year==2009], 
-                                  #      type="b", xlab="", ylab="temperature (ºC)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2009], final_adj_Palmer$WS_avg_2min[final_adj_Palmer$year==2009], 
-                                  #      type="l", xlab="", ylab="wind speed (m/s)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2009], final_adj_Palmer$U_WD_avg_2min[final_adj_Palmer$year==2009], 
-                                  #      type="l", xlab="", ylab="u wind (m/s)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2009], final_adj_Palmer$V_WD_avg_2min[final_adj_Palmer$year==2009], 
-                                  #      type="l", xlab="", ylab="v wind (m/w)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2009], final_adj_Palmer$rel_humidity[final_adj_Palmer$year==2009], 
-                                  #      type="l", xlab="", ylab="relative humidity", col="hotpink")
-                                  # 
-                                  # 
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2008], final_adj_Palmer$precip_melted[final_adj_Palmer$year==2008], 
-                                  #      type="l", xlab="", ylab="precipitation (mm)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2008], final_adj_Palmer$temperature[final_adj_Palmer$year==2008], 
-                                  #      type="b", xlab="", ylab="temperature (ºC)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2008], final_adj_Palmer$WS_avg_2min[final_adj_Palmer$year==2008], 
-                                  #      type="l", xlab="", ylab="wind speed (m/s)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2008], final_adj_Palmer$U_WD_avg_2min[final_adj_Palmer$year==2008], 
-                                  #      type="l", xlab="", ylab="u wind (m/s)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2008], final_adj_Palmer$V_WD_avg_2min[final_adj_Palmer$year==2008], 
-                                  #      type="l", xlab="", ylab="v wind (m/w)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2008], final_adj_Palmer$rel_humidity[final_adj_Palmer$year==2008], 
-                                  #      type="l", xlab="", ylab="relative humidity", col="hotpink")
-                                  # 
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2007], final_adj_Palmer$precip_melted[final_adj_Palmer$year==2007], 
-                                  #      type="l", xlab="", ylab="precipitation (mm)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2007], final_adj_Palmer$temperature[final_adj_Palmer$year==2007], 
-                                  #      type="b", xlab="", ylab="temperature (ºC)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2007], final_adj_Palmer$WS_avg_2min[final_adj_Palmer$year==2007], 
-                                  #      type="l", xlab="", ylab="wind speed (m/s)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2007], final_adj_Palmer$U_WD_avg_2min[final_adj_Palmer$year==2007], 
-                                  #      type="l", xlab="", ylab="u wind (m/s)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2007], final_adj_Palmer$V_WD_avg_2min[final_adj_Palmer$year==2007], 
-                                  #      type="l", xlab="", ylab="v wind (m/w)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2007], final_adj_Palmer$rel_humidity[final_adj_Palmer$year==2007], 
-                                  #      type="l", xlab="", ylab="relative humidity", col="hotpink")
-                                  # 
-                                  # 
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2006], final_adj_Palmer$precip_melted[final_adj_Palmer$year==2006], 
-                                  #      type="l", xlab="", ylab="precipitation (mm)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2006], final_adj_Palmer$temperature[final_adj_Palmer$year==2006], 
-                                  #      type="b", xlab="", ylab="temperature (ºC)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2006], final_adj_Palmer$WS_avg_2min[final_adj_Palmer$year==2006], 
-                                  #      type="l", xlab="", ylab="wind speed (m/s)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2006], final_adj_Palmer$U_WD_avg_2min[final_adj_Palmer$year==2006], 
-                                  #      type="l", xlab="", ylab="u wind (m/s)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2006], final_adj_Palmer$V_WD_avg_2min[final_adj_Palmer$year==2006], 
-                                  #      type="l", xlab="", ylab="v wind (m/w)")
-                                  # plot(final_adj_Palmer$date[final_adj_Palmer$year==2006], final_adj_Palmer$rel_humidity[final_adj_Palmer$year==2006], 
-                                  #      type="l", xlab="", ylab="relative humidity", col="hotpink")
-                                  # 
-                                   }
-                                  
-}
-
 
 # adjusted but not gap filled hourly dataset 
 setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate/PAWS relative humidity 2016-present")
@@ -4718,41 +3899,11 @@ tail(final_adj_Palmer)
 }
 tail(final_adj_Palmer)
 
-# # are there months with >15% missing days?
-# temp_NAs <- final_adj_Palmer[is.na(final_adj_Palmer$temperature),]
-# # n=54 days missing out of 12814 or 0.4% (less than 1%)
-# (54/12814)*100
-# #write.csv(temp_NAs, "temp_NAs.csv")
-# precip_NAs <- final_adj_Palmer[is.na(final_adj_Palmer$precip_melted),]
-# # n=113 days missing out of 12814 or 0.9% are missing
-# (113/12814)*100
-# #write.csv(precip_NAs, "precip_NAs.csv")
-# wspd_NAs <- final_adj_Palmer[is.na(final_adj_Palmer$WS_avg_2min),]
-# # n=62 days missing out of 12814 or 0.5% are missing (less than (1%))
-# (62/12814)*100
-# #write.csv(wspd_NAs, "wspd_NAs.csv")
-# uw_NAs <- final_adj_Palmer[is.na(final_adj_Palmer$U_WD_avg_2min),]
-# # n=113 days missing out of 12814 or 0.9% are missing
-# (113/12814)*100
-# #write.csv(uw_NAs, "uw_NAs.csv")
-# vw_NAs <- final_adj_Palmer[is.na(final_adj_Palmer$V_WD_avg_2min),]
-# # n=113 days missing out of 12814 or 0.9% are missing
-# (113/12814)*100
-# #write.csv(vw_NAs, "vw_NAs.csv")
-# rh_NAs <- final_adj_Palmer[is.na(final_adj_Palmer$rel_humidity),]
-# rh_NAs <- rh_NAs[-c(1:4627),]
-# # n=55 days missing out of (12814-4627) = 8187 or 0.7% are missing
-# (55/8187)*100
-# #write.csv(rh_NAs, "rh_NAs.csv")
-
 
 setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate/JTECH 2025 submission")
 #write.csv(final_adj_Palmer,"hourly_final_palmer_adjusted_NOT_GAP_FILLED.csv",col.names =T)
 #write.csv(final_adj_Palmer,"final_palmer_adjusted_NOT_GAP_FILLED.csv",col.names =T)
 final_adj_Palmer <- read.csv("final_palmer_adjusted_NOT_GAP_FILLED.csv", header=TRUE)
-#write.csv(final_adj_Palmer,"final_palmer_adjusted_NOT_GAP_FILLED_rh_mean_mo_diffs.csv",col.names =T)
-#write.csv(final_adj_Palmer,"final_palmer_adjusted_NOT_GAP_FILLED_rh_mo_diffs.csv",col.names =T)
-#write.csv(final_adj_Palmer,"final_palmer_adjusted_NOT_GAP_FILLED_rh_regres.csv",col.names =T)
 
 # *** read in daily ERA5 data #####
 {
@@ -4872,15 +4023,6 @@ final_adj_Palmer <- read.csv("final_palmer_adjusted_NOT_GAP_FILLED.csv", header=
   era5_hourly <- (era5_hourly[c(113209:309696),])
 }
 
-# which rh CF do I use of the three?
-
-# rh_mo_diffs <- read.csv("final_palmer_adjusted_NOT_GAP_FILLED_rh_mo_diffs.csv", header=TRUE)
-# rh_regres <- read.csv("final_palmer_adjusted_NOT_GAP_FILLED_rh_regres.csv", header=TRUE)
-# rh_mean_mo_diffs <- read.csv("final_palmer_adjusted_NOT_GAP_FILLED_rh_mean_mo_diffs.csv", header=TRUE)
-
-# plot(rh_mo_diffs$rel_humidity, type="l", col="yellow4")
-# lines(rh_regres$rel_humidity, type="l", col="pink")
-# lines(rh_mean_mo_diffs$rel_humidity, type="l", col="grey33")
 
 # Correction factors for era5 variables #####
 par(mfrow=c(2,4))
@@ -5073,10 +4215,11 @@ addfiglab("(g)")
 
 #setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate")
 #final_adj_Palmer <- read.csv("hourly_final_palmer_adjusted_NOT_GAP_FILLED.csv", header=TRUE)
+
 colnames(final_adj_Palmer)
 final_adj_Palmer <- final_adj_Palmer[,-1]
 
-# rownames(era5_hourly) <- c(1:196488)
+
 
 # ∆ REPLACE MIssING PALMER WITH ERA5 - HOURLY #####
 {# JAN 2002
@@ -6002,7 +5145,6 @@ final_adj_Palmer[c(9900,9901,9902,9906,9907,9909,9910,9911,9919),7] = era5_daily
 }
 
 
-#final_adj_Palmer <- final_adj_Palmer[1:12814,]
 final_adj_Palmer[c(1927),7] = NA
 final_adj_Palmer[c(46646),7] = NA
 final_adj_Palmer[c(13815),7] = NA
@@ -6012,10 +5154,8 @@ par(mfrow=c(4,2))
 par(mar = c(3, 4.5, 0.5, 0.5)) #par(mar = c(bottom, left, top, right))
 
 # Convert the character string to a Date object, specifying the input format
-#final_adj_Palmer$date <- as.Date(final_adj_Palmer$date, format = "%Y/%m/%d")
 final_adj_Palmer$date <-  as.POSIXct(final_adj_Palmer$check.dates, tz="UTC", format="%Y-%m-%d")
 
-#final_adj_Palmer <- final_adj_Palmer[1:12764,]
 plot(final_adj_Palmer$date, final_adj_Palmer$precip_melted, type="l",
      ylab="precipitation (mm)")
 plot(final_adj_Palmer$date, final_adj_Palmer$temperature, type="l",
