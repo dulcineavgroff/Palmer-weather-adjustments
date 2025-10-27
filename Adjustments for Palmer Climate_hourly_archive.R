@@ -1,19 +1,17 @@
-# Adjustments for Palmer Climate -- daily archive version #####
+# Adjustments for Palmer Climate -- daily archive version
 # install.packages(ggplot2)
 # install.packages(plotly)
 # install.packages(lubridate)
 # install.packages(plyr)
 # install.packages(dplyr)
 # install.packages(scales)
-# install.packages(berryFunctions)
+
 library(ggplot2)
 library(plotly)
 library(lubridate)
 library(plyr)
 library(dplyr)
 library(scales)
-library (berryFunctions)
-
 # function for figure labels a, b, c
 {
   line2user <- function(line, side) {
@@ -295,7 +293,7 @@ rm(temp.paws)
   addfiglab("(b)")
   
   #### Fig 2c mean monthly differences#####
-  {
+ {
   diff <- mo_paws$Air.Temp - mo_palmos$Air.Temp
  
   plot(diff, 
@@ -306,7 +304,7 @@ rm(temp.paws)
   legend(1,0.45, legend=c(expression(bold("PAWS minus PalMOS\nmonthly mean difference"))), bg="transparent", bty="n",
          pch=c(15), pt.cex = 2, pt.lwd=3, col="black")
  }
-  addfiglab("(c)")
+addfiglab("(c)")
 
   
   ## Relative humidity #####
@@ -383,8 +381,11 @@ addfiglab("(b)")
   }
 addfiglab("(c)")
 
-rm(rh.daily.palmos, rh.daily.paws, mo_rh.daily.palmos, mo_rh.daily.paws, palmos_zeros)
-
+rm(rh.daily.palmos)
+rm(rh.daily.paws)
+rm(mo_rh.daily.palmos)
+rm(mo_rh.daily.paws)
+rm(palmos_zeros)
 ## Wind speed #####
   ### remove zeros in palmos and paws overlapping wind speed #####      
   {
@@ -1129,6 +1130,8 @@ addfiglab("(b)")
   addfiglab("(b)")
   
 
+  
+ 
 rm(all.catch.ratios, fig1, apr_2016.palmos, apr_2016.paws, aug_2016.palmos, aug_2016.paws,
    dec_2015.palmos, dec_2015.paws, feb_2016.palmos, feb_2016.paws,
    jan_2016.palmos,jan_2016.paws, jul_2016.palmos, jul_2016.paws,
@@ -1643,6 +1646,21 @@ logical_vector <- maws$dates=="2010-10-12"
 row_numbers <- which(logical_vector)
 
 # calc dailys from 1-min adjusted temperature and rel humidity MAWS #####
+# hourly
+# maws_rh$hour <- as.POSIXlt(maws_rh$datetime)$hour
+# 
+# hourly_adj_rh_maws <- maws_rh %>%
+#   group_by(year,month,day,hour) %>%
+#   summarise(adj_rh = mean(adj_rh, na.rm=TRUE)) %>%
+#   mutate(date = make_datetime(year, month, day, hour))
+# 
+# maws_temp$hour <- as.POSIXlt(maws_temp$datetime)$hour
+# 
+# hourly_adj_temp_maws <- maws_temp %>%
+#   group_by(year,month,day,hour) %>%
+#   summarise(adj_temp = mean(adj_temp, na.rm=TRUE)) %>%
+#   mutate(date = make_datetime(year, month, day, hour))
+
 # daily
 daily_adj_rh_maws <- maws_rh %>%
   group_by(year,month,day) %>%
@@ -1904,9 +1922,81 @@ pal$adj_u <- -pal$adj_ws * sin(pal$adj_wd*pi/180)
 
 pal$Melted.precipitation..mm.[pal$Melted.precipitation..mm. > 40] <- NA
 pal$adj_pm <- pal$Melted.precipitation..mm. * 2.0 # 
+# *************************************** #####
 
+#  HOURLY PalMOS data to be used in GRAND COMBINATION section #####
+# head(pal) # 2001-11-30 00:00:58
+# tail(pal) # 2017-03-31 23:59:58
+# 
+# #1 create column with hour
+# pal$hour <- as.POSIXlt(pal$datetime)$hour
+# 
+# # hourly
+{
+# pal_adj_not_for_overlap <- pal %>%
+#   group_by(year,month,day,hour) %>%
+#   summarise(adj_t = mean(adj_t, na.rm=TRUE), 
+#             adj_ws = mean(adj_ws, na.rm=TRUE),
+#             adj_u = mean(adj_u, na.rm=TRUE),
+#             adj_v = mean(adj_v, na.rm=TRUE),
+#             adj_rh = mean(adj_rh),
+#             adj_pm = max(adj_pm),
+#              adj_pres = mean(adj_pres, na.rm=TRUE)) %>%
+#  mutate(date = make_datetime(year, month, day, hour))
+# 
+# # calculate hourly AMOUNT of precip from total max in palmos
+# result_df <- pal_adj_not_for_overlap %>%
+#   mutate(day = as_date(day)) %>% # Create a grouping variable for each day
+#   group_by(day) %>% # Group the data by the 24-hour period
+#   mutate(
+#     hourly_precip = adj_pm - lag(adj_pm, default = first(adj_pm))
+#   ) #%>%
+# #  ungroup() %>% # Remove grouping
+# #  select(-day) # Clean up by removing the day column
+# 
+# # the result
+# result_df$hourly_precip[result_df$hourly_precip < 0] <- 0
+# 
+# pal_adj_not_for_overlap$hourly_precip <- result_df$hourly_precip
+# 
+# 
+# # forces the hourly dataset to begin:2001-12-01 and end 2015-09-30, add paws 01 October 2015
+# pal_adj_not_for_overlap <- pal_adj_not_for_overlap[-c(1:24,120063:132993),]
+# 
+# # palmos temperature is erroneous beginning 30 may 2010 ending 12 oct 2010
+# 
+# # check days are same
+# df1 <- as.data.frame(pal_adj_not_for_overlap[c(73460:76723),])
+# df2 <- as.data.frame(hourly_adj_temp_maws[c(1:3253),])
+# 
+# min_time <- min(min(df1$date), min(df2$date, na.rm=TRUE))
+# max_time <- max(max(df1$date), max(df2$date, na.rm=TRUE))
+# full_time_series <- data.frame(date = seq.POSIXt(min_time, max_time, by = "hour"))
+# 
+# # 3. Join the Datasets:
+# # Perform a full_join of original datasets with this 
+# # full_time_series dataframe. This ensures that all hourly timestamps 
+# # are present, and missing values from the original datasets will be as NA.
+# merged_data <- full_join(full_time_series, df1, by = "date") %>%
+#   full_join(df2, by = "date")
+# merged_data <- merged_data[-3265,]
+# head(merged_data)
+# colnames(merged_data)
+# 
+# # palmos temperature is erroneous beginning 30 may 2010 ending 12 oct 2010
+# pal_adj_not_for_overlap[c(73460:76723),5] = merged_data[c(1:3264),18]
+# 
+# 
+# # palmos rel humidity is erroneous beginning 06 September 2010 ending 12 oct 2010
+# pal_adj_not_for_overlap[c(75836:76723),9] = hourly_adj_rh_maws[c(1:888),5]
+# # check days are same
+# pal_adj_not_for_overlap$day[c(75836:76723)] - hourly_adj_rh_maws$day[c(1:888)]
+# tail(pal_adj_not_for_overlap)
+# 
+}
 
-#  PalMOS data to be used in GRAND COMBINATION section# *************************************** #####
+# daily
+#  PalMOS data to be used in GRAND COMBINATION section #####
 pal_adj_not_for_overlap <- pal %>%
   group_by(year,month,day) %>%
   summarise(adj_t = mean(adj_t, na.rm=TRUE), 
@@ -1927,6 +2017,7 @@ pal_adj_not_for_overlap[c(3072:3207),4] = daily_adj_temp_maws[c(1:136),4]
 # check days are same
 pal_adj_not_for_overlap$day[c(3072:3207)] - daily_adj_temp_maws$day[c(1:136)]
 
+
 # palmos rel humidity is erroneous beginning 06 September 2010 ending 12 oct 2010
 pal_adj_not_for_overlap[c(3171:3207),8] = daily_adj_rh_maws[c(1:37),4]
 # check days are same
@@ -1935,7 +2026,8 @@ pal_adj_not_for_overlap$day[c(3171:3207)] - daily_adj_rh_maws$day[c(1:37)]
 # palmos missing 2010 rel humidity and temperature values replaced with adjusted maws data
 
 
-### Calc. 4 per day manual observations #####
+
+### Calc. 4 manual observations #####
 # average of 10 minutes, prior to 06UTC, 12UTC, 18UTC, 24UTC
 
 library(stringr)
@@ -1985,16 +2077,19 @@ pal_adj <- pal_subset_to_manual %>%
 
 # forces the dataset to end 2015-09-30,      will add paws 01 October 2015
 pal_adj <- pal_adj[-c(5017:5559),]
-
-
+tail(pal_adj)
+# ########################################################### #
 # ########################################################### #
 # this is used to compare with manual observations
 # ########################################################### #
 daily.pal_overlap <-  pal_adj[c(2:657),] # should end 2003-09-30
 tail(daily.pal_overlap)
 
+# ########################################################### #
 
 # ########################################################### #
+# ########################################################### #
+
 # 2-yr overlap 4/day-manual and adj PalMOS comparison #####
 
 # file 1: daily avgs 1989-12 Dec 2003
@@ -2429,6 +2524,8 @@ man_adj$adj_P <- man_adj$hilow_P - 0.06144204
 man_adj$adj_T <- NA
 man_adj$adj_T <- man_adj$hilow_T * 1.008
 
+
+
 ##################################################################### #
 ##################################################################### #
 ## IMPORTANT: these corrections get applied after the Tmin+Tmax/2 correction to Temperature occurs
@@ -2468,6 +2565,7 @@ man_adj2$comb_T <- c(man_adj2$hilow_T[c(1:2710)], man_adj2$Temperature.Average..
 
 ## apply CF manual Pressure #####
 # adjust 04-1989 to 11-2001 mean of hi-low temperature + combine with non-adjusted 
+# based on 2-year overlap analysis of adjustment factors
 man_adj2$man_adj2_P <- NA
 
 man_adj2$comb_P <- man_adj2$comb_P + (8 / (29.27 * Tv)) # converts surf pressure to mslp based on elevation
@@ -2485,6 +2583,7 @@ man_adj2$man_adj2_T <- man_adj2$comb_T * 0.993
 # the newly adjusted manual Temperature data series
 man_adj2$man_adj2_T <- round(man_adj2$man_adj2_T,1)
 man_adj2$man_adj2_T
+
 
 
 # Wind speed #####
@@ -2567,6 +2666,7 @@ addfiglab("(e)")
          pch=c(0,1), pt.cex = 1.5, pt.lwd=3, col=c(alpha("#ca0020",0.9), alpha("#0571b0",0.7)))
 }
 addfiglab("(f)")
+
 
 
 ## apply wind speed CF  #####
@@ -3233,6 +3333,15 @@ man_adj2$adj_pm
 
 # GRAND COMBINATION ##### 
 ## PalMOS AWS dataset #####
+# hourly
+# final_pal_adj <- cbind.data.frame(pal_adj_not_for_overlap$date, pal_adj_not_for_overlap$year, pal_adj_not_for_overlap$month, pal_adj_not_for_overlap$day, pal_adj_not_for_overlap$hour,
+#                                   pal_adj_not_for_overlap$adj_t, pal_adj_not_for_overlap$hourly_precip, #pal_adj_not_for_overlap$adj_pm, 
+#                                   pal_adj_not_for_overlap$adj_ws,
+#                                   pal_adj_not_for_overlap$adj_u, pal_adj_not_for_overlap$adj_v, pal_adj_not_for_overlap$adj_rh, pal_adj_not_for_overlap$adj_pres)
+# 
+# names(final_pal_adj)[1:12] <-c("date", "year", "month", "day", "hour",
+#                                "temperature", "precip_melted", "WS_avg_2min",
+#                                "U_WD_avg_2min", "V_WD_avg_2min", "rel_humidity", "Pressure")
 # daily
 final_pal_adj <- cbind.data.frame(pal_adj_not_for_overlap$date, pal_adj_not_for_overlap$year, pal_adj_not_for_overlap$month, pal_adj_not_for_overlap$day,
                                   pal_adj_not_for_overlap$adj_t, pal_adj_not_for_overlap$adj_pm, pal_adj_not_for_overlap$adj_ws,
@@ -3332,9 +3441,14 @@ names(final_paws)[1:11] <-c("date", "year", "month", "day",
                                "U_WD_avg_2min", "V_WD_avg_2min", "rel_humidity","Pressure")
 
 # FINAL data set #####      
+
+# hourly
+# final_adj_Palmer <- rbind(final_pal_adj, final_paws)
+
 # daily, combine manual, palmos, paws
 final_adj_Palmer <- rbind(final_man_adj, final_pal_adj, final_paws)
 
+                                  
 
 # adjusted but not gap filled hourly dataset 
 setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate/PAWS relative humidity 2016-present")
@@ -3350,10 +3464,360 @@ plot(final_adj_Palmer$date, final_adj_Palmer$rel_humidity, type="l")
 plot(final_adj_Palmer$date, final_adj_Palmer$precip_melted, type="l")
 plot(final_adj_Palmer$date, final_adj_Palmer$Pressure, type="l")
 
+# hourly
+# hourly Add Missing Rows #####
+# start from bottom (most recent date) and work up to the top
+{
+  library ("berryFunctions")
+  ### TOOL TOOOL 
+   final_adj_Palmer[1322:1323,]
+  # final_adj_Palmer$date <- as.character(final_adj_Palmer$date)
+  # final_adj_Palmer[final_adj_Palmer$date == "2002-01-26", ]
+  ### TOOL TOOL 
+  
+  # missing hourly: 2024-02-14
+  final_adj_Palmer <- insertRows(final_adj_Palmer, 191993:192016 , new = NA) 
+  { final_adj_Palmer[191993:192016, 1] = c("2024-02-14")
+  final_adj_Palmer[191993:192016, 2] = c("2024")
+  final_adj_Palmer[191993:192016, 3] = c("2")
+  final_adj_Palmer[191993:192016, 4] = c("14") } # missing hourly: 2024-02-14
+ 
+  # missing hourly: 2023-10-11 00:01:00 to 2023-10-14 14:00:00
+  final_adj_Palmer <- insertRows(final_adj_Palmer, 189096:189180 , new = NA)
+  {
+  final_adj_Palmer[189096:189118, 1] = c("2023-10-11")
+  final_adj_Palmer[189096:189118, 2] = c("2023")
+  final_adj_Palmer[189096:189118, 3] = c("10")
+  final_adj_Palmer[189096:189118, 4] = c("11")
+  
+  final_adj_Palmer[189119:189142, 1] = c("2023-10-12")
+  final_adj_Palmer[189119:189142, 2] = c("2023")
+  final_adj_Palmer[189119:189142, 3] = c("10")
+  final_adj_Palmer[189119:189142, 4] = c("12")
+  
+  final_adj_Palmer[189143:189166, 1] = c("2023-10-13")
+  final_adj_Palmer[189143:189166, 2] = c("2023")
+  final_adj_Palmer[189143:189166, 3] = c("10")
+  final_adj_Palmer[189143:189166, 4] = c("13")
+  
+  final_adj_Palmer[189167:189180, 1] = c("2023-10-14")
+  final_adj_Palmer[189167:189180, 2] = c("2023")
+  final_adj_Palmer[189167:189180, 3] = c("10")
+  final_adj_Palmer[189167:189180, 4] = c("14")
+  } # missing hourly: 2023-10-11 00:00:00 to 2023-10-14 14:00:00
+  
+  # missing hourly: 2022-10-17 to 2022-10-18
+  final_adj_Palmer <- insertRows(final_adj_Palmer, 180601:180648 , new = NA)
+  {final_adj_Palmer[180601:180624, 1] = c("2022-10-17")
+  final_adj_Palmer[180601:180624, 2] = c("2022")
+  final_adj_Palmer[180601:180624, 3] = c("10")
+  final_adj_Palmer[180601:180624, 4] = c("17")
+  
+  final_adj_Palmer[180625:180648, 1] = c("2022-10-18")
+  final_adj_Palmer[180625:180648, 2] = c("2022")
+  final_adj_Palmer[180625:180648, 3] = c("10")
+  final_adj_Palmer[180625:180648, 4] = c("18") }  # missing hourly: 2022-10-17 to 2022-10-18
+  
+  # missing hourly: 2019-11-21 to 2019-11-30
+  final_adj_Palmer <- insertRows(final_adj_Palmer, 156144:156383 , new = NA)
+  { final_adj_Palmer[156144:156167, 1] = c("2019-11-21")
+  final_adj_Palmer[156144:156167, 2] = c("2019")
+  final_adj_Palmer[156144:156167, 3] = c("11")
+  final_adj_Palmer[156144:156167, 4] = c("21")
+  
+  final_adj_Palmer[156168:156191, 1] = c("2019-11-22")
+  final_adj_Palmer[156168:156191, 2] = c("2019")
+  final_adj_Palmer[156168:156191, 3] = c("11")
+  final_adj_Palmer[156168:156191, 4] = c("22")
+  
+  final_adj_Palmer[156192:156215, 1] = c("2019-11-23")
+  final_adj_Palmer[156192:156215, 2] = c("2019")
+  final_adj_Palmer[156192:156215, 3] = c("11")
+  final_adj_Palmer[156192:156215, 4] = c("23")
+  
+  final_adj_Palmer[156216:156239, 1] = c("2019-11-24")
+  final_adj_Palmer[156216:156239, 2] = c("2019")
+  final_adj_Palmer[156216:156239, 3] = c("11")
+  final_adj_Palmer[156216:156239, 4] = c("24")
+  
+  final_adj_Palmer[156240:156263, 1] = c("2019-11-25")
+  final_adj_Palmer[156240:156263, 2] = c("2019")
+  final_adj_Palmer[156240:156263, 3] = c("11")
+  final_adj_Palmer[156240:156263, 4] = c("25")
+  
+  final_adj_Palmer[156264:156287, 1] = c("2019-11-26")
+  final_adj_Palmer[156264:156287, 2] = c("2019")
+  final_adj_Palmer[156264:156287, 3] = c("11")
+  final_adj_Palmer[156264:156287, 4] = c("26")
+  
+  final_adj_Palmer[156288:156311, 1] = c("2019-11-27")
+  final_adj_Palmer[156288:156311, 2] = c("2019")
+  final_adj_Palmer[156288:156311, 3] = c("11")
+  final_adj_Palmer[156288:156311, 4] = c("27")
+  
+  final_adj_Palmer[156312:156335, 1] = c("2019-11-28")
+  final_adj_Palmer[156312:156335, 2] = c("2019")
+  final_adj_Palmer[156312:156335, 3] = c("11")
+  final_adj_Palmer[156312:156335, 4] = c("28")
+  
+  final_adj_Palmer[156336:156359, 1] = c("2019-11-29")
+  final_adj_Palmer[156336:156359, 2] = c("2019")
+  final_adj_Palmer[156336:156359, 3] = c("11")
+  final_adj_Palmer[156336:156359, 4] = c("29")
+
+  final_adj_Palmer[156360:156383, 1] = c("2019-11-30")
+  final_adj_Palmer[156360:156383, 2] = c("2019")
+  final_adj_Palmer[156360:156383, 3] = c("11")
+  final_adj_Palmer[156360:156383, 4] = c("30")
+  } # missing hourly: 2019-11-21 to 2019-11-30
+  
+  final_adj_Palmer <- insertRows(final_adj_Palmer, 131086:131109 , new = NA)
+  { final_adj_Palmer[131086:131109, 1] = c("2017-01-05")
+  final_adj_Palmer[131086:131109, 2] = c("2017")
+  final_adj_Palmer[131086:131109, 3] = c("01")
+  final_adj_Palmer[131086:131109, 4] = c("05")
+  }
+  
+  final_adj_Palmer <- insertRows(final_adj_Palmer, 106916:106987 , new = NA)
+  { final_adj_Palmer[106916:106939, 1] = c("2014-03-29")
+    final_adj_Palmer[106916:106939, 2] = c("2014")
+    final_adj_Palmer[106916:106939, 3] = c("03")
+    final_adj_Palmer[106916:106939, 4] = c("29")
+    
+    final_adj_Palmer[106940:106963, 1] = c("2014-03-30")
+    final_adj_Palmer[106940:106963, 2] = c("2014")
+    final_adj_Palmer[106940:106963, 3] = c("03")
+    final_adj_Palmer[106940:106963, 4] = c("30")
+    
+    final_adj_Palmer[106964:106987, 1] = c("2014-03-31")
+    final_adj_Palmer[106964:106987, 2] = c("2014")
+    final_adj_Palmer[106964:106987, 3] = c("03")
+    final_adj_Palmer[106964:106987, 4] = c("31")}
+    
+  final_adj_Palmer <- insertRows(final_adj_Palmer, c(97614:97637) , new = NA)
+  { final_adj_Palmer[97614:97637, 1] = c("2013-03-03")
+    final_adj_Palmer[97614:97637, 2] = c("2013")
+    final_adj_Palmer[97614:97637, 3] = c("03")
+    final_adj_Palmer[97614:97637, 4] = c("03")
+  }
+  
+  final_adj_Palmer <- insertRows(final_adj_Palmer, c(98238:98261) , new = NA)
+  { final_adj_Palmer[98238:98261, 1] = c("2013-03-29")
+    final_adj_Palmer[98238:98261, 2] = c("2013")
+    final_adj_Palmer[98238:98261, 3] = c("03")
+    final_adj_Palmer[98238:98261, 4] = c("29")
+  }
+  
+  final_adj_Palmer <- insertRows(final_adj_Palmer, 62839:62862 , new = NA)
+  { final_adj_Palmer[62839:62862, 1] = c("2009-03-12")
+    final_adj_Palmer[62839:62862, 2] = c("2009")
+    final_adj_Palmer[62839:62862, 3] = c("03")
+    final_adj_Palmer[62839:62862, 4] = c("12")
+  }
+  
+  final_adj_Palmer <- insertRows(final_adj_Palmer, 62623:62646, new = NA)
+  { final_adj_Palmer[62623:62646, 1] = c("2009-03-02")
+    final_adj_Palmer[62623:62646, 2] = c("2009")
+    final_adj_Palmer[62623:62646, 3] = c("03")
+    final_adj_Palmer[62623:62646, 4] = c("02")
+  }
+  
+  final_adj_Palmer <- insertRows(final_adj_Palmer, 60847:60870, new = NA)
+  { final_adj_Palmer[60847:60870, 1] = c("2008-12-17")
+    final_adj_Palmer[60847:60870, 2] = c("2008")
+    final_adj_Palmer[60847:60870, 3] = c("12")
+    final_adj_Palmer[60847:60870, 4] = c("17")
+  }
+  
+  final_adj_Palmer <- insertRows(final_adj_Palmer, 57160:57183 , new = NA)
+  { final_adj_Palmer[57160:57183, 1] = c("2008-07-14")
+    final_adj_Palmer[57160:57183, 2] = c("2008")
+    final_adj_Palmer[57160:57183, 3] = c("07")
+    final_adj_Palmer[57160:57183, 4] = c("14")
+  }
+  
+  final_adj_Palmer <- insertRows(final_adj_Palmer, c(56296,56343) , new = NA)
+  { final_adj_Palmer[56296:56319, 1] = c("2008-06-06")
+    final_adj_Palmer[56296:56319, 2] = c("2008")
+    final_adj_Palmer[56296:56319, 3] = c("06")
+    final_adj_Palmer[56296:56319, 4] = c("06")
+ 
+   final_adj_Palmer[56320:56343, 1] = c("2008-06-07")
+    final_adj_Palmer[56320:56343, 2] = c("2008")
+    final_adj_Palmer[56320:56343, 3] = c("06")
+    final_adj_Palmer[56320:56343, 4] = c("07")
+  }
+  
+  final_adj_Palmer <- insertRows(final_adj_Palmer, 55288:55311 , new = NA)
+  {final_adj_Palmer[55288:55311, 1] = c("2008-04-24")
+  final_adj_Palmer[55288:55311, 2] = c("2008")
+  final_adj_Palmer[55288:55311, 3] = c("04")
+  final_adj_Palmer[55288:55311, 4] = c("24")
+  }
+  
+  final_adj_Palmer <- insertRows(final_adj_Palmer, c(38524:38619) , new = NA)
+  #final_adj_Palmer[c(6241:6244), 1] = c("2006-05-22","2006-05-23","2006-05-24","2006-05-25")
+  { final_adj_Palmer[38524:38547, 1] = c("2006-05-22")
+  final_adj_Palmer[38524:38547, 2] = c("2006")
+  final_adj_Palmer[38524:38547, 3] = c("05")
+  final_adj_Palmer[38524:38547, 4] = c("22")
+  
+  final_adj_Palmer[38548:38571, 1] = c("2006-05-23")
+  final_adj_Palmer[38548:38571, 2] = c("2006")
+  final_adj_Palmer[38548:38571, 3] = c("05")
+  final_adj_Palmer[38548:38571, 4] = c("23")
+  
+  final_adj_Palmer[38572:38595, 1] = c("2006-05-24")
+  final_adj_Palmer[38572:38595, 2] = c("2006")
+  final_adj_Palmer[38572:38595, 3] = c("05")
+  final_adj_Palmer[38572:38595, 4] = c("24")
+  
+  final_adj_Palmer[38596:38619, 1] = c("2006-05-25")
+  final_adj_Palmer[38596:38619, 2] = c("2006")
+  final_adj_Palmer[38596:38619, 3] = c("05")
+  final_adj_Palmer[38596:38619, 4] = c("25")
+  }
+  
+  final_adj_Palmer <- insertRows(final_adj_Palmer, c(37599:37753) , new = NA)
+  # final_adj_Palmer[c(6202:6208), 1] = c("2006-04-06","2006-04-07","2006-04-08","2006-04-09",
+  #                                       "2006-04-10","2006-04-11","2006-04-12")
+ { final_adj_Palmer[37599:37622, 1] = c("2006-04-06")
+  final_adj_Palmer[37599:37622, 2] = c("2006")
+  final_adj_Palmer[37599:37622, 3] = c("04")
+  final_adj_Palmer[37599:37622, 4] = c("06")
+  
+  final_adj_Palmer[37623:37646, 1] = c("2006-04-07")
+  final_adj_Palmer[37623:37646, 2] = c("2006")
+  final_adj_Palmer[37623:37646, 3] = c("04")
+  final_adj_Palmer[37623:37646, 4] = c("07")
+ 
+  final_adj_Palmer[37647:37670, 1] = c("2006-04-08")
+  final_adj_Palmer[37647:37670, 2] = c("2006")
+  final_adj_Palmer[37647:37670, 3] = c("04")
+  final_adj_Palmer[37647:37670, 4] = c("08")
+ 
+  final_adj_Palmer[37671:37694, 1] = c("2006-04-09")
+  final_adj_Palmer[37671:37694, 2] = c("2006")
+  final_adj_Palmer[37671:37694, 3] = c("04")
+  final_adj_Palmer[37671:37694, 4] = c("09")
+ 
+  final_adj_Palmer[37695:37718, 1] = c("2006-04-10")
+  final_adj_Palmer[37695:37718, 2] = c("2006")
+  final_adj_Palmer[37695:37718, 3] = c("04")
+  final_adj_Palmer[37695:37718, 4] = c("10")
+ 
+  final_adj_Palmer[37719:37742, 1] = c("2006-04-11")
+  final_adj_Palmer[37719:37742, 2] = c("2006")
+  final_adj_Palmer[37719:37742, 3] = c("04")
+  final_adj_Palmer[37719:37742, 4] = c("11")
+ 
+  final_adj_Palmer[37743:37753, 1] = c("2006-04-12")
+  final_adj_Palmer[37743:37753, 2] = c("2006")
+  final_adj_Palmer[37743:37753, 3] = c("04")
+  final_adj_Palmer[37743:37753, 4] = c("12")
+}
+  
+  final_adj_Palmer <- insertRows(final_adj_Palmer, 28715:28738 , new = NA)
+  #final_adj_Palmer[5830, 1] = c("2005-03-29")
+  { final_adj_Palmer[28715:28738, 1] = c("2005-03-29")
+  final_adj_Palmer[28715:28738, 2] = c("2005")
+  final_adj_Palmer[28715:28738, 3] = c("3")
+  final_adj_Palmer[28715:28738, 4] = c("29")}
+  
+  final_adj_Palmer <- insertRows(final_adj_Palmer, c(5146:5193) , new = NA)
+  #final_adj_Palmer[c(4845:4846), 1] = c("2002-07-16","2002-07-17")
+  { final_adj_Palmer[5146:5169, 1] = c("2002-07-16")
+  final_adj_Palmer[5146:5169, 2] = c("2002")
+  final_adj_Palmer[5146:5169, 3] = c("7")
+  final_adj_Palmer[5146:5169, 4] = c("16")
+  
+  final_adj_Palmer[5170:5193, 1] = c("2002-07-17")
+  final_adj_Palmer[5170:5193, 2] = c("2002")
+  final_adj_Palmer[5170:5193, 3] = c("7")
+  final_adj_Palmer[5170:5193, 4] = c("17")}
+  
+  final_adj_Palmer <- insertRows(final_adj_Palmer, c(5098:5145) , new = NA)
+  #final_adj_Palmer[c(4843:4844), 1] = c("2002-07-12","2002-07-13")
+  { final_adj_Palmer[5098:5121, 1] = c("2002-07-12")
+  final_adj_Palmer[5098:5121, 2] = c("2002")
+  final_adj_Palmer[5098:5121, 3] = c("7")
+  final_adj_Palmer[5098:5121, 4] = c("12")
+  
+  final_adj_Palmer[5122:5145, 1] = c("2002-07-13")
+  final_adj_Palmer[5122:5145, 2] = c("2002")
+  final_adj_Palmer[5122:5145, 3] = c("7")
+  final_adj_Palmer[5122:5145, 4] = c("13") }
+
+  # start line 1323 hour 2 in 2002-01-26
+  final_adj_Palmer <- insertRows(final_adj_Palmer, c(1323:1537) , new = NA)
+  # final_adj_Palmer[c(4685:4687), 1] = c("2002-02-01","2002-02-02","2002-02-03")
+  # final_adj_Palmer[c(4685:4689), 1] = c("2002-01-27","2002-01-28","2002-01-29",
+  #                                       "2002-01-30","2002-01-31")
+  { final_adj_Palmer[1323:1345, 1] = c("2002-01-26")
+  final_adj_Palmer[1323:1345, 2] = c("2002")
+  final_adj_Palmer[1323:1345, 3] = c("1")
+  final_adj_Palmer[1323:1345, 4] = c("26")
+  
+  final_adj_Palmer[1346:1369, 1] = c("2002-01-27")
+  final_adj_Palmer[1346:1369, 2] = c("2002")
+  final_adj_Palmer[1346:1369, 3] = c("1")
+  final_adj_Palmer[1346:1369, 4] = c("27")
+  
+  final_adj_Palmer[1370:1393, 1] = c("2002-01-28")
+  final_adj_Palmer[1370:1393, 2] = c("2002")
+  final_adj_Palmer[1370:1393, 3] = c("1")
+  final_adj_Palmer[1370:1393, 4] = c("28")
+  
+  final_adj_Palmer[1394:1417, 1] = c("2002-01-29")
+  final_adj_Palmer[1394:1417, 2] = c("2002")
+  final_adj_Palmer[1394:1417, 3] = c("1")
+  final_adj_Palmer[1394:1417, 4] = c("29")
+  
+  final_adj_Palmer[1418:1441, 1] = c("2002-01-30")
+  final_adj_Palmer[1418:1441, 2] = c("2002")
+  final_adj_Palmer[1418:1441, 3] = c("1")
+  final_adj_Palmer[1418:1441, 4] = c("30")
+  
+  final_adj_Palmer[1442:1465, 1] = c("2002-01-31")
+  final_adj_Palmer[1442:1465, 2] = c("2002")
+  final_adj_Palmer[1442:1465, 3] = c("1")
+  final_adj_Palmer[1442:1465, 4] = c("31")
+  
+  final_adj_Palmer[1466:1489, 1] = c("2002-02-01")
+  final_adj_Palmer[1466:1489, 2] = c("2002")
+  final_adj_Palmer[1466:1489, 3] = c("2")
+  final_adj_Palmer[1466:1489, 4] = c("1")
+  
+  final_adj_Palmer[1490:1513, 1] = c("2002-02-02")
+  final_adj_Palmer[1490:1513, 2] = c("2002")
+  final_adj_Palmer[1490:1513, 3] = c("2")
+  final_adj_Palmer[1490:1513, 4] = c("2")
+  
+  final_adj_Palmer[1514:1537, 1] = c("2002-02-03")
+  final_adj_Palmer[1514:1537, 2] = c("2002")
+  final_adj_Palmer[1514:1537, 3] = c("2")
+  final_adj_Palmer[1514:1537, 4] = c("3")}
+  
+  
+  
+  
+  # trouble shoot missing values - add to table to calculate % missing in a month
+  # final_adj_Palmer$check.dates <-  seq(as.Date("04/01/1989",format="%m/%d/%Y"),
+  #                                      by="days",length=length(final_adj_Palmer$date))
+  # 
+  # 
+  # final_adj_Palmer$check.dates[final_adj_Palmer$check.dates %in% final_adj_Palmer$date]
+  # final_adj_Palmer$check.dates[!(final_adj_Palmer$check.dates %in% final_adj_Palmer$date)]
+}
+tail(final_adj_Palmer)
+
+
+
 # daily
 # daily Add Missing Rows #####
+# USE THIS
 {
-
+  library ("berryFunctions")
   
   final_adj_Palmer[c(4680:4695), ]
   final_adj_Palmer[c(12562:12566), ]
@@ -3431,10 +3895,13 @@ plot(final_adj_Palmer$date, final_adj_Palmer$Pressure, type="l")
   final_adj_Palmer$check.dates[final_adj_Palmer$check.dates %in% final_adj_Palmer$date]
   final_adj_Palmer$check.dates[!(final_adj_Palmer$check.dates %in% final_adj_Palmer$date)]
 }
+tail(final_adj_Palmer)
 
 
 setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate/JTECH 2025 submission")
+#write.csv(final_adj_Palmer,"hourly_final_palmer_adjusted_NOT_GAP_FILLED.csv",col.names =T)
 #write.csv(final_adj_Palmer,"final_palmer_adjusted_NOT_GAP_FILLED.csv",col.names =T)
+
 final_adj_Palmer <- read.csv("final_palmer_adjusted_NOT_GAP_FILLED.csv", header=TRUE)
 
 # *** read in daily ERA5 data #####
@@ -3497,6 +3964,64 @@ final_adj_Palmer <- read.csv("final_palmer_adjusted_NOT_GAP_FILLED.csv", header=
   # trim the era5 dataset to match the dates of adjusted palmer dataset
   era5_daily <- (era5_daily[c(91:12904),])
 }
+
+# *** read in hourly ERA5 data #####
+{
+  # ERA5 Assembled file of hourly values for all variables #####
+  # pressure
+  setwd("/Users/dulcineagroff/era5_10m_surface_pressure_1989_2024_Palmer")
+  pressure <- read.table("hourly_era5_surface_pressure_1989_2024_Palmer.csv",header=T, sep = ";")
+  
+  # temperature
+  setwd("/Users/dulcineagroff/hourly_era5_2m_temp_1989_2024_Palmer")
+  temperature <- read.table("hourly_era5_2m_temp_1989_2024_Palmer.csv",header=T, sep = ";")
+  
+  #total precipitation
+  setwd("/Users/dulcineagroff/era5_tot_precip_1989_2024_Palmer")
+  tot.precip <- read.table("hourly_era5_tot_precip_1989_2024_Palmer.csv",header=T, sep = ";")
+  head(tot.precip)
+  
+  #2m dewpoint aka rel humidity
+  setwd("/Users/dulcineagroff/era5_2m_dewpot_1989_2024_Palmer")
+  dewpt <- read.table("hourly_era5_2m_dewpot_1989_2024_Palmer.csv", header=T, sep=";")
+  
+  # v wind component of wind
+  setwd("/Users/dulcineagroff/era5_10m_v_wind_1989_2024_Palmer")
+  v <- read.table("hourly_era5_v_wind_1989_2024_Palmer.csv", header=T, sep=";")
+  
+  # u wind component of wind
+  setwd("/Users/dulcineagroff/era5_10m_u_wind_1989_2024_Palmer")
+  u <- read.table("hourly_era5_u_wind_1989_2024_Palmer.csv", header=T, sep=";")
+  head(u)
+  
+  # convert temperature and calculate relative humidity
+  # RH = 100 * (exp((17.625 * Td) / (243.04 + Td))) / (exp((17.625 * T) / (243.04 + T)))
+  pressure$var1.hPa <- pressure$var1 / 100
+  temperature$var1.C <- temperature$var1 - 273.15
+  dewpt$var1.C <- dewpt$var1 - 273.15
+  dewpt$RH = 100 * (exp((17.625 * dewpt$var1.C) / (243.04 + dewpt$var1.C))) / 
+    (exp((17.625 * temperature$var1.C) / (243.04 + temperature$var1.C)))
+  
+  tot.precip$var1.mm <- tot.precip$var1*1000
+  windspeed <- sqrt(u$var1^2 + v$var1^2)
+  
+  # combine time, temperature, precip, rel hum, v wind, u wind **
+  era5_hourly <- cbind.data.frame(dewpt$time, temperature$var1.C, tot.precip$var1.mm, dewpt$RH, v$var1, u$var1, windspeed, pressure$var1.hPa)
+  names(era5_hourly)[1:8]  <-c("date","temperature", "tot_precip", "rel_humidity", "v", "u","windspeed","pressure")
+  
+  # parse date into year, month, day, doy
+  era5_hourly$date <-  ymd_hms(era5_hourly$date)
+  era5_hourly$year <- format(as.Date(era5_hourly$date, format="Y%/%m/%d"),"%Y")
+  era5_hourly$month <- format(as.Date(era5_hourly$date, format="Y%/%m/%d"),"%m")
+  era5_hourly$day <- format(as.Date(era5_hourly$date, format="Y%/%m/%d"),"%d")
+  era5_hourly$year  <- as.numeric(era5_hourly$year)
+  era5_hourly$month <- as.numeric(era5_hourly$month)
+  era5_hourly$day <- as.numeric(era5_hourly$day)
+  
+  # trim the era5 dataset to match the dates of adjusted palmer dataset
+  era5_hourly <- (era5_hourly[c(113209:309696),])
+}
+
 
 # Correction factors for era5 variables #####
 par(mfrow=c(2,4))
@@ -3687,7 +4212,451 @@ par(mar=c(4,6,0.5,1))
 addfiglab("(g)")
 
 
+#setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate")
+#final_adj_Palmer <- read.csv("hourly_final_palmer_adjusted_NOT_GAP_FILLED.csv", header=TRUE)
+
+colnames(final_adj_Palmer)
 final_adj_Palmer <- final_adj_Palmer[,-1]
+
+
+
+# ∆ REPLACE MIssING PALMER WITH ERA5 - HOURLY #####
+{# JAN 2002
+  {
+    
+    # missing 5 days
+    # Jan 27-31 2002
+    final_adj_Palmer[1346,] # 2002-01-27
+    final_adj_Palmer[1465,] # 2002-01-31
+    
+    # replace with ERA5 daily values for relative humidity (adjusted)
+    # this data frame comes from Palmer Climate adjusted data analyses
+    era5_hourly[1369,] # 2002-01-27
+    era5_hourly[1488,] # 2002-01-31
+    plot(era5_hourly$rel_humidity[1369:1488], type="l")
+     
+    final_adj_Palmer[c(1346:1465),11] = era5_hourly[c(1369:1488),4] * 0.832
+    plot(final_adj_Palmer$rel_humidity[1346:1465], type="l")
+  }
+  
+  # APR 2006
+  {
+    # missing 7 days
+    # Apr 6-12 2006
+    final_adj_Palmer[37934,] # 2006-04-06
+    final_adj_Palmer[38088,] # 2006-04-12
+
+    # replace with ERA5 daily values for relative humidity (adjusted)
+    # this data frame comes from Palmer Climate adjusted data analyses
+    era5_hourly[38089,] # 2006-04-06
+    era5_hourly[38243,] # 2006-04-12 10:00:00 UTC
+    plot(era5_hourly$rel_humidity[38089:38243], type="l")
+    # adjust the APR daily values by the MAM mean difference between
+    # era5 and Palmer; 
+    final_adj_Palmer[c(37934:38088),11] = era5_hourly[c(38089:38243),4] * 0.832
+    plot(final_adj_Palmer$rel_humidity[38089:38243], type="l")
+  }
+  
+  # NOV 2019
+  {
+    # missing 10 days
+    # Nov 21-30 2019
+    final_adj_Palmer[156996,] # 2019-11-21
+    final_adj_Palmer[157235,] # 2019-11-30
+    
+    # replace with ERA5 daily values for relative humidity (adjusted)
+    # this data frame comes from Palmer Climate adjusted data analyses
+    era5_hourly[157537,] # 2019-11-21
+    era5_hourly[157776,] # 2019-11-30
+    plot(era5_hourly$rel_humidity[157537:157776], type="l")
+    # adjust the NOV daily values by the SON mean difference between
+    # era5 and Palmer; this means adding 2.2% to relative humidity bc eRA5 is larger by 2.2% in SON
+    final_adj_Palmer[c(156996:157235),11] = era5_hourly[c(157537:157776),4] * 0.832
+    plot(final_adj_Palmer$rel_humidity[156996:157235], type="l")
+  }
+  
+  #  PRESSURE replaced w/ ERA5 #####
+  # APR 2006 
+  {
+    # missing 7 days
+    # Apr 6-12 2006
+    final_adj_Palmer[37934,] # 2006-04-06
+    final_adj_Palmer[38088,] # 2006-04-12
+    
+    # replace with ERA5 daily values for temperature (adjusted)
+    # this data frame comes from Palmer Climate adjusted data analyses
+    era5_hourly[38089,] # 2006-04-06
+    era5_hourly[38243,] # 2006-04-12
+    plot(era5_hourly$temperature[38089:38243], type="l")
+    # adjust the APR daily values by the MAM mean difference between
+    # era5 and Palmer; 
+    final_adj_Palmer[c(37934:38088),12] = era5_hourly[c(38089:38243),8] * 1.025
+    plot(final_adj_Palmer$Pressure[37934:38088], type="l")
+  }
+  
+  # NOV 2019 
+  {
+    # missing 10 days
+    # Nov 21-30 2019
+    final_adj_Palmer[156996,] # 2019-11-21
+    final_adj_Palmer[157235,] # 2019-11-30
+    
+    # replace with ERA5 daily values for temperature (adjusted)
+    # this data frame comes from Palmer Climate adjusted data analyses
+    era5_hourly[157537,] # 2019-11-21
+    era5_hourly[157776,] # 2019-11-30
+    plot(era5_hourly$pressure[157537:157776], type="l")
+    # adjust the NOV daily values by the SON mean difference between
+    # era5 and Palmer; 
+    final_adj_Palmer[c(156996:157235),12] = era5_hourly[c(157537:157776),8] * 1.025
+    plot(final_adj_Palmer$Pressure[156996:157235], type="l")
+  }
+  
+  
+  #  TEMPERATURE replaced w/ ERA5 #####
+  # JAN 2002 
+  {
+    # missing 5 days
+    # Jan 27-31 2002
+    final_adj_Palmer[1346,] # 2002-01-27
+    final_adj_Palmer[1465,] # 2002-01-31
+    
+    # replace with ERA5 daily values for temperature (adjusted)
+    # this data frame comes from Palmer Climate adjusted data analyses
+    era5_hourly[1369,] # 2002-01-27
+    era5_hourly[1488,] # 2002-01-31
+    plot(era5_hourly$temperature[1369:1488], type="l")
+    # adjust the JAN daily values by the DJF mean difference between
+    # era5 and Palmer; 
+    final_adj_Palmer[c(1346:1465),6] = era5_hourly[c(1369:1488),2] * 0.914
+    plot(final_adj_Palmer$temperature[1346:1465], type="l")
+  }
+  
+  # APR 2006 
+  {
+    # missing 7 days
+    # Apr 6-12 2006
+    final_adj_Palmer[37934,] # 2006-04-06
+    final_adj_Palmer[38088,] # 2006-04-12
+    
+    # replace with ERA5 daily values for temperature (adjusted)
+    # this data frame comes from Palmer Climate adjusted data analyses
+    era5_hourly[38089,] # 2006-04-06
+    era5_hourly[38243,] # 2006-04-12
+    plot(era5_hourly$temperature[38089:38243], type="l")
+    # adjust the APR daily values by the MAM mean difference between
+    # era5 and Palmer; 
+    final_adj_Palmer[c(37934:38088),6] = era5_hourly[c(38089:38243),2] * 0.914
+    plot(final_adj_Palmer$temperature[37934:38088], type="l")
+  }
+  
+  # NOV 2019 
+  {
+    # missing 10 days
+    # Nov 21-30 2019
+    final_adj_Palmer[156996,] # 2019-11-21
+    final_adj_Palmer[157235,] # 2019-11-30
+    
+    # replace with ERA5 daily values for temperature (adjusted)
+    # this data frame comes from Palmer Climate adjusted data analyses
+    era5_hourly[157537,] # 2019-11-21
+    era5_hourly[157776,] # 2019-11-30
+    plot(era5_hourly$temperature[157537:157776], type="l")
+    # adjust the NOV daily values by the SON mean difference between
+    # era5 and Palmer; 
+    final_adj_Palmer[c(156996:157235),6] = era5_hourly[c(157537:157776),2] * 0.914
+    plot(final_adj_Palmer$temperature[156996:157235], type="l")
+  }
+  
+  #  PRECIPITATION replaced w/ ERA5 #####
+  # JAN 2002 == 
+  {
+    # missing 5 days
+    # Jan 27-31 2002
+    final_adj_Palmer[1346,] # 2002-01-27
+    final_adj_Palmer[1465,] # 2002-01-31
+    
+    # replace with ERA5 daily values (adjusted)
+    # this data frame comes from Palmer Climate adjusted data analyses
+    era5_hourly[1369,] # 2002-01-27
+    era5_hourly[1488,] # 2002-01-31
+    plot(era5_hourly$tot_precip[1369:1488], type="l")
+    # 
+    final_adj_Palmer[c(1346:1465),7] = era5_hourly[c(1369:1488),3] * 0.562
+    
+  }
+  
+  # DO NOT RUN
+  # NOT MISSING
+  # JUL 2002 == 
+  {
+    # missing 7 days
+    # Jul -- 12,13,16,17,25,26,30 -- 2002
+    final_adj_Palmer[5313,] # 07/12/2002
+    final_adj_Palmer[5360,] # 07/13/2002
+    
+    final_adj_Palmer[5409,] # 07/16/2002
+    final_adj_Palmer[5456,] # 07/17/2002
+    
+    final_adj_Palmer[5625,] # 07/25/2002
+    final_adj_Palmer[5672,] # 07/26/2002
+    
+    final_adj_Palmer[5724,] # 07/30/2002
+    final_adj_Palmer[5747,] # 07/30/2002 
+    
+    era5_hourly[5353,] # 07/12/2002
+    era5_hourly[5400,] # 07/13/2002
+    
+    era5_hourly[5449,] # 07/16/2002
+    era5_hourly[5496,] # 07/17/2002
+    
+    era5_hourly[5665,] # 07/25/2002
+    era5_hourly[5712,] # 07/26/2002
+    
+    era5_hourly[5785,] # 07/30/2002
+    era5_hourly[5808,] # 07/30/2002    
+   
+    plot(era5_hourly$tot_precip[5353:5808], type="l")
+    
+    # to precip bc eRA5 is larger by 1.8ºC in DJF
+    final_adj_Palmer[c(5313:5360, 5409:5456, 5625:5672, 5724:5747),7] = era5_hourly[c(5353:5400, 5449:5496, 5665:5712, 5785:5808),3] * 0.562
+    
+  }
+  # NOT MISSING
+  # SEP 2002 == 
+  {
+    # missing 6 days
+    # Sep -- 3,6,12,18,20,26 -- 2002
+    final_adj_Palmer[6564:6587,] # 09/03/2002 not missing
+    final_adj_Palmer[6636:6659,] # 09/06/2002 not missing
+    final_adj_Palmer[6780:6803,] # 09/12/2002 not missing
+    final_adj_Palmer[4919,] # 09/18/2002 not missing
+    final_adj_Palmer[4921,] # 09/20/2002 not missing
+    final_adj_Palmer[4927,] # 09/26/2002  not missing
+    
+  
+    
+    final_adj_Palmer[c(4904, 4907, 4913, 4919, 4921, 4927),7] = era5_daily[c(4904, 4907, 4913, 4919, 4921, 4927),3] * 0.562
+    
+  }
+  # NOT MISSING
+  # DEC 2002 == 
+  {
+    # missing 6 days
+    # Sep -- 6,10,12,20,28,29 -- 2002
+    final_adj_Palmer[4998,] # 12/06/2002
+    final_adj_Palmer[5002,] # 12/10/2002
+    final_adj_Palmer[5004,] # 12/12/2002
+    final_adj_Palmer[5012,] # 12/20/2002
+    final_adj_Palmer[5020,] # 12/28/2002
+    final_adj_Palmer[5021,] # 12/29/2002
+    
+    # adjust the DEC daily values by the DJF mean difference between
+    # era5 and Palmer; this means dividing 154 mm by 89 days in DJF == 1.7 mm
+    # 154/89 # == 1.7 mm per day that should be subtracted from daily PALMER
+    
+    final_adj_Palmer[c(4998, 5002, 5004, 5012, 5020, 5021),6] = era5_daily[c(4998, 5002, 5004, 5012, 5020, 5021),3] * 0.562
+    
+  }
+  # DO NOT RUN
+  
+  
+  # APR 2006 == 
+  {
+    # missing 7 days
+    # APR -- 6 to 12 -- 2006
+    final_adj_Palmer[37934,] # 04/06/2002
+    final_adj_Palmer[38088,] # 04/12/2002
+    
+    final_adj_Palmer[c(37934:38088),7] = era5_hourly[c(38089:38243),3] * 0.562
+    
+  }
+  
+  # OCT 2009 == 
+  {
+    # missing 7 days
+    # OCT -- 9 to 31 -- 2009
+    final_adj_Palmer[68577,] # 10/09/2009
+    final_adj_Palmer[69128,] # 10/31/2009
+    
+    final_adj_Palmer[c(68577:69128),7] = era5_hourly[c(68857:69408),3] * 0.562
+    
+  }
+  
+  # NOV 2019 == 
+  {
+    # missing 10 days
+    # NOV -- 21 to 30 -- 2019
+    final_adj_Palmer[156996,] # 11/21/2019
+    final_adj_Palmer[157235,] # 11/30/2019
+    
+    # adjust the NOV daily values by the SON mean difference between
+    # era5 and Palmer; this means dividing 304 mm by 91 days in SON == 3.3 mm
+    # 304/91 # == 3.3 mm per day that should be subtracted from daily PALMER
+    final_adj_Palmer[c(156996:157235),7] = era5_hourly[c(157537:157776),3] * 0.562
+    
+  }
+  
+  # replace negative values with zeros  !!!!!!
+  #final_adj_Palmer$precip_melted <- ifelse(final_adj_Palmer$precip_melted < 0, 0, final_adj_Palmer$precip_melted)
+  
+  #  Wind speed replaced w/ ERA5 #####
+  # JAN 2002 == 
+  {
+    # missing 5 days
+    # Jan 27-31 2002
+    final_adj_Palmer[1346,] # 2002-01-27
+    final_adj_Palmer[1465,] # 2002-01-31
+    
+    # replace with ERA5 daily values (adjusted)
+    # this data frame comes from Palmer Climate adjusted data analyses
+    era5_hourly[1369,] # 2002-01-27
+    era5_hourly[1488,] # 2002-01-31
+    plot(era5_hourly$windspeed[1369:1488], type="l")
+    # adjust the JAN daily values by the DJF mean difference between
+    # era5 and Palmer; this means adding 1.2 m/s to windspeed bc eRA5 is smaller by 1.2 m/s in DJF
+    final_adj_Palmer[c(1346:1465),8] = era5_hourly[c(1369:1488),7] * 1.101
+  }
+  
+  # APR 2006 == 
+  {
+    # missing 7 days
+    # Apr 6-12 2006
+    final_adj_Palmer[37934,] # 2006-04-06
+    final_adj_Palmer[38088,] # 2006-04-12
+    
+    # replace with ERA5 daily values for temperature (adjusted)
+    # this data frame comes from Palmer Climate adjusted data analyses
+    era5_hourly[38089,] # 2006-04-06
+    era5_hourly[38243,] # 2006-04-12
+    plot(era5_hourly$windspeed[38089:38243], type="l")
+    # adjust the APR daily values by the MAM mean difference between
+    # era5 and Palmer; 
+    final_adj_Palmer[c(37934:38088),8] = era5_hourly[c(38089:38243),7] * 1.101
+    
+  }
+  
+  # MAY 2016 ==
+  # missing 9 days
+  # May -- 8,9,10,14,15,17,18,19,27 -- 2016
+  {
+    final_adj_Palmer[126114,] # 2016-05-8
+    #final_adj_Palmer[9901,] #  2016-05-9
+    final_adj_Palmer[126185,] # end of 2016-05-10
+    
+    final_adj_Palmer[126258,] # 2016-05-14
+    final_adj_Palmer[126305,] # end of 2016-05-15
+    
+    final_adj_Palmer[126330,] # 2016-05-17
+    #final_adj_Palmer[9910,] # 2016-05-18
+    final_adj_Palmer[126401,] # end of 2016-05-19
+    
+    final_adj_Palmer[126570:126593,] # 2016-05-27
+    
+    # replace with ERA5 daily values for temperature (adjusted)
+    era5_hourly[126529,] # 2016-05-8
+    #final_adj_Palmer[9901,] #  2016-05-9
+    era5_hourly[126600,] # end of 2016-05-10
+    
+    era5_hourly[126673,] # 2016-05-14
+    era5_hourly[126720,] # end of 2016-05-15
+    
+    era5_hourly[126745,] # 2016-05-17
+    #final_adj_Palmer[9910,] # 2016-05-18
+    era5_hourly[126816,] # end of 2016-05-19
+    
+    era5_hourly[126985:127008,] # 2016-05-27
+    # era5 and Palmer; 
+    final_adj_Palmer[c(126114:126185, 126258:126305, 126330:126401, 126570:126593),8] = era5_hourly[c(126529:126600, 126673:126720, 126745:126816,126985:127008),7] * 1.101
+  }
+  
+  # NOV 2019 == 
+  {
+    # missing 10 days
+    # Nov 21-30 2019
+    final_adj_Palmer[156996,] # 2019-11-21
+    final_adj_Palmer[157235,] # 2019-11-30
+    
+    # replace with ERA5 daily values for temperature (adjusted)
+    # this data frame comes from Palmer Climate adjusted data analyses
+    era5_hourly[157537,] # 2019-11-21
+    era5_hourly[157776,] # 2019-11-30
+    plot(era5_hourly$temperature[157537:157776], type="l")
+    # adjust the NOV daily values by the SON mean difference between
+    # era5 and Palmer; 
+    final_adj_Palmer[c(156996:157235),8] = era5_hourly[c(157537:157776),7] * 1.005
+    
+  }
+  
+  #  U wind component replaced w/ ERA5 #####
+  # JAN 2002 == 
+  {
+    # missing 5 days
+    # Jan 27-31 2002
+    final_adj_Palmer[1346,] # 2002-01-27
+    final_adj_Palmer[1465,] # 2002-01-31
+    
+    final_adj_Palmer[c(1346:1465),9] = era5_hourly[c(1369:1488),6] * 0.604
+  }
+  
+  # APR 2006 == 
+  {
+    # missing 7 days
+    # Apr 6-12 2006
+    final_adj_Palmer[37934,] # 2006-04-06
+    final_adj_Palmer[38088,] # 2006-04-12
+    
+    final_adj_Palmer[c(37934:38088),9] = era5_hourly[c(38089:38243),6] * 0.604
+    
+  }
+  
+  # NOV 2019 == 
+  {
+    # missing 10 days
+    # Nov 21-30 2019
+    final_adj_Palmer[156996,] # 2019-11-21
+    final_adj_Palmer[157235,] # 2019-11-30
+    
+    final_adj_Palmer[c(156996:157235),9] = era5_hourly[c(157537:157776),6] * 0.604
+    
+  }
+  
+  #  V wind component replaced w/ ERA5 #####
+  # JAN 2002 == 
+  {
+    # missing 5 days
+    # Jan 27-31 2002
+    final_adj_Palmer[1346,] # 2002-01-27
+    final_adj_Palmer[1465,] # 2002-01-31
+    
+    final_adj_Palmer[c(1346:1465),10] = era5_hourly[c(1369:1488),5] * 1.349
+  }
+  
+  # APR 2006 == 
+  {
+    # missing 7 days
+    # Apr 6-12 2006
+    final_adj_Palmer[37934,] # 2006-04-06
+    final_adj_Palmer[38088,] # 2006-04-12
+    
+    final_adj_Palmer[c(37934:38088),10] = era5_hourly[c(38089:38243),5] * 1.349
+    
+  }
+  
+  # NOV 2019 == 
+  {
+    # missing 10 days
+    # Nov 21-30 2019
+    final_adj_Palmer[156996,] # 2019-11-21
+    final_adj_Palmer[157235,] # 2019-11-30
+    
+    final_adj_Palmer[c(156996:157235),10] = era5_hourly[c(157537:157776),5] * 1.349
+    
+  }
+  
+}
+
+
 
 
 # ∆ REPLACE MIssING PALMER WITH ERA5 - DAILY #####
@@ -4174,6 +5143,11 @@ final_adj_Palmer[c(9900,9901,9902,9906,9907,9909,9910,9911,9919),7] = era5_daily
 
 }
 
+
+#final_adj_Palmer[c(1927),7] = NA
+#final_adj_Palmer[c(46646),7] = NA
+#final_adj_Palmer[c(13815),7] = NA
+
 # plot final_adj_Palmer #####
 par(mfrow=c(4,2))
 par(mar = c(3, 4.5, 0.5, 0.5)) #par(mar = c(bottom, left, top, right))
@@ -4197,9 +5171,13 @@ plot(final_adj_Palmer$date, final_adj_Palmer$Pressure, type="l",
      ylab="air pressure (hPa)")
 
 setwd("/Users/dulcineagroff/Desktop/Antarctica/PalmerSt_Journal of Climate")
+#write.csv(daily.pal_overlap, "PalMOS_Data_Dec2001_Sep2003.csv")
+head(final_adj_Palmer)
+#write.csv(final_adj_Palmer, "Palmer Station un-adjusted observations 1989-2024.csv", col.names=TRUE)
+
+
 final_adj_Palmer <- as.data.frame(final_adj_Palmer)
 #write.csv(final_adj_Palmer, "Daily Palmer Station adjusted gap-filled observations 1989-2024.csv", col.names=TRUE)
 
-rm(list = ls())
-dev.off(dev.list()["RStudioGD"])
+
 
